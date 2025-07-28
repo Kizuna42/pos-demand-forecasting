@@ -23,9 +23,9 @@ jobs:
           python --version
           python -c "print('Hello from CI')"
           
-      - name: Install minimal dependencies
+      - name: Install essential dependencies
         run: |
-          pip install pytest
+          pip install pytest black pandas numpy scikit-learn matplotlib pyyaml requests loguru
           
       - name: Verify basic structure
         run: |
@@ -33,6 +33,18 @@ jobs:
           test -f src/main.py && echo "main.py exists" || echo "main.py missing"
           test -d tests && echo "tests dir exists" || echo "tests dir missing"
           
-      - name: Run minimal test
+      - name: Add src to Python path
         run: |
-          python -c "print('Basic test passed')"
+          echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src" >> $GITHUB_ENV
+          
+      - name: Basic import test
+        run: |
+          PYTHONPATH=$PYTHONPATH:$(pwd)/src python -c "import demand_forecasting; print('Import successful')"
+          
+      - name: Check code formatting
+        run: |
+          black --check src/ tests/
+          
+      - name: Run simple test
+        run: |
+          PYTHONPATH=$PYTHONPATH:$(pwd)/src python -m pytest tests/test_data.py -v
