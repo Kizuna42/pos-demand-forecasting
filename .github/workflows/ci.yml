@@ -49,13 +49,18 @@ jobs:
         run: |
           black --check .
 
-      - name: Test with pytest
+      - name: Test basic functionality
         run: |
-          pytest tests/ --cov=src --cov-report=xml --tb=short -v
+          pytest tests/test_data.py -v --tb=short
+          
+      - name: Test full suite
+        run: |
+          pytest tests/ --tb=short
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          flags: unittests
-          name: codecov-umbrella
+      # Coverage reporting disabled for now
+      # - name: Upload coverage to Codecov
+      #   uses: codecov/codecov-action@v3
+      #   with:
+      #     file: ./coverage.xml
+      #     flags: unittests
+      #     name: codecov-umbrella
