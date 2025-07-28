@@ -11,7 +11,7 @@ feature_engineering:
     - "週末フラグ"
 
   time_features:
-    enable_time_assignment: true
+    enable_time_assignment: false
     enable_congestion: true
     time_distribution_type: "bimodal"
 

@@ -197,6 +197,9 @@ class FeatureEngineer:
         def assign_time_slot(category):
             if category in category_time_mapping:
                 probs = list(category_time_mapping[category].values())
+                # 確率を正規化して合計を1にする
+                probs = np.array(probs)
+                probs = probs / probs.sum()
                 time_slots = ['morning', 'afternoon', 'evening']
                 return np.random.choice(time_slots, p=probs)
             return 'afternoon'  # デフォルト

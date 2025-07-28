@@ -237,7 +237,30 @@ class DataProcessor:
         try:
             # 日付列の処理
             if '年月日' in df_features.columns:
-                df_features['年月日'] = pd.to_datetime(df_features['年月日'])
+                # 日本語形式の日付を適切に解析
+                try:
+                    # まず標準的な解析を試行
+                    df_features['年月日'] = pd.to_datetime(df_features['年月日'])
+                except (ValueError, pd.errors.ParserError):
+                    # 日本語形式の日付を変換（例: "2024年1月2日" -> "2024-01-02"）
+                    self.logger.info("日本語形式の日付を検出、変換処理を実行")
+                    date_series = df_features['年月日'].astype(str)
+                    
+                    # 正規表現で日本語日付を抽出・変換
+                    import re
+                    def parse_japanese_date(date_str):
+                        try:
+                            # "2024年1月2日" のような形式をマッチ
+                            match = re.match(r'(\d{4})年(\d{1,2})月(\d{1,2})日', str(date_str))
+                            if match:
+                                year, month, day = match.groups()
+                                return f"{year}-{int(month):02d}-{int(day):02d}"
+                            return date_str
+                        except:
+                            return date_str
+                    
+                    converted_dates = date_series.apply(parse_japanese_date)
+                    df_features['年月日'] = pd.to_datetime(converted_dates)
                 
                 # 月、曜日、週末フラグを作成
                 df_features['月'] = df_features['年月日'].dt.month
