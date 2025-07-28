@@ -19,7 +19,7 @@ from .reports.report_generator import ReportGenerator
 
 __all__ = [
     "DataProcessor",
-    "FeatureEngineer", 
+    "FeatureEngineer",
     "ModelBuilder",
     "DemandCurveAnalyzer",
     "QualityEvaluator",
