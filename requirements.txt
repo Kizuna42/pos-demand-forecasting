@@ -8,4 +8,13 @@ pytest
 python-dotenv
 tqdm
 typer
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+scipy
+pyyaml
+requests
+shap
 -e .

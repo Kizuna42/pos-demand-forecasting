@@ -1,0 +1,46 @@
+data:
+  raw_data_path: "data/raw/納品用_20240101_20241231_生鮮全品data.csv"
+  encoding: "shift_jis"
+  processed_data_path: "data/processed"
+
+feature_engineering:
+  baseline_features:
+    - "売上単価"
+    - "月"
+    - "曜日"
+    - "週末フラグ"
+
+  time_features:
+    enable_time_assignment: true
+    enable_congestion: true
+    time_distribution_type: "bimodal"
+
+  weather_features:
+    enable_weather_api: true
+    api_endpoint: "https://api.open-meteo.com/v1/forecast"
+    location: "Tokyo"
+
+model:
+  algorithm: "RandomForest"
+  n_estimators: 100
+  max_depth: 10
+  random_state: 42
+  cv_folds: 5
+
+quality:
+  thresholds:
+    premium: 0.7
+    standard: 0.5
+    basic: 0.3
+
+  overfitting_threshold: 0.1
+
+visualization:
+  output_dir: "output/visualizations"
+  dpi: 300
+  style: "want_style"
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/demand_forecasting.log"
