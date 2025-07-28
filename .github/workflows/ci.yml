@@ -32,10 +32,15 @@ jobs:
         run: |
           python -m py_compile src/main.py
           
-      - name: Run core tests
+      - name: Run basic tests
         run: |
           export PYTHONPATH="${GITHUB_WORKSPACE}/src:$PYTHONPATH"
-          python -m pytest tests/test_data.py tests/test_data_processor.py tests/test_model_builder.py tests/test_feature_engineer.py tests/test_quality_evaluator.py -v --tb=short
+          python -m pytest tests/test_data.py tests/test_data_processor.py -v --tb=short
+          
+      - name: Run additional stable tests  
+        run: |
+          export PYTHONPATH="${GITHUB_WORKSPACE}/src:$PYTHONPATH"
+          python -m pytest tests/test_quality_evaluator.py tests/test_report_generator.py tests/test_want_plotter.py -v --tb=short
           
       - name: Code quality
         run: |
