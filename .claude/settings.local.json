@@ -21,7 +21,8 @@
       "Bash(git push:*)",
       "Bash(gh pr checks:*)",
       "WebFetch(domain:github.com)",
-      "Bash(isort:*)"
+      "Bash(isort:*)",
+      "Bash(/dev/null)"
     ],
     "deny": []
   }
