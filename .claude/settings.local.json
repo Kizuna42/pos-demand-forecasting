@@ -4,7 +4,8 @@
       "Bash(mkdir:*)",
       "Bash(make lint:*)",
       "Bash(make:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }
