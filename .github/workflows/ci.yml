@@ -27,6 +27,15 @@ jobs:
           pip install flit_core
           pip install -r requirements.txt
           pip install -e .
+          
+      - name: Create required directories
+        run: |
+          mkdir -p data/raw data/processed reports logs output models
+          
+      - name: Verify installation
+        run: |
+          python -c "import src.demand_forecasting; print('Package installed successfully')"
+          python -c "import pytest; print(f'pytest version: {pytest.__version__}')"
 
       - name: Lint with flake8
         run: |
@@ -41,7 +50,7 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/ --cov=src --cov-report=xml
+          pytest tests/ --cov=src --cov-report=xml --tb=short -v
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
