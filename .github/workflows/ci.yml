@@ -34,9 +34,21 @@ jobs:
         run: |
           mkdir -p data/raw data/processed reports logs output models
 
-      - name: Basic syntax check
+      - name: Debug environment
         run: |
+          pwd
+          ls -la
+          ls -la src/
+          ls -la src/demand_forecasting/
+          
+      - name: Basic syntax check step by step
+        run: |
+          echo "Compiling main.py..."
           python -m py_compile src/main.py
+          echo "Testing import..."
+          python -c "import sys; print('Python version:', sys.version)"
+          python -c "import sys; print('Current working directory:', sys.exc_info())" || true
+          python -c "import sys; sys.path.insert(0, 'src'); print('Updated path:', sys.path[:3])"
           python -c "import sys; sys.path.insert(0, 'src'); import demand_forecasting; print('Import successful')"
 
       - name: Run single test file
