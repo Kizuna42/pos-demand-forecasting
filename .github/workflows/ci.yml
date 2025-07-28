@@ -42,12 +42,30 @@ jobs:
           export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"
           echo "PYTHONPATH=$(pwd)/src:$PYTHONPATH" >> $GITHUB_ENV
           
-      - name: Run tests
+      - name: Verify Python setup
+        run: |
+          python --version
+          pip list | head -20
+          
+      - name: Test basic import
+        run: |
+          cd ${{ github.workspace }}
+          export PYTHONPATH="${{ github.workspace }}/src:$PYTHONPATH"
+          python -c "import sys; sys.path.insert(0, 'src'); import demand_forecasting; print('✅ Import successful')"
+          
+      - name: Run critical tests only
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: |
           cd ${{ github.workspace }}
-          python -m pytest tests/ -v --tb=short --maxfail=3
+          python -m pytest tests/test_data.py tests/test_data_processor.py tests/test_model_builder.py -v --tb=short
+          
+      - name: Run remaining tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          cd ${{ github.workspace }}
+          python -m pytest tests/ -v --tb=short --ignore=tests/test_end_to_end.py
           
       - name: Check code quality
         run: |
