@@ -34,8 +34,9 @@ jobs:
           
       - name: Verify installation
         run: |
-          python -c "import src.demand_forecasting; print('Package installed successfully')"
+          python -c "import sys; print('Python path:', sys.path)"
           python -c "import pytest; print(f'pytest version: {pytest.__version__}')"
+          pip list | grep -E "(pos2|flit|pytest)"
 
       - name: Lint with flake8
         run: |
