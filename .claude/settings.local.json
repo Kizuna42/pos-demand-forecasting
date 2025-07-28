@@ -5,7 +5,12 @@
       "Bash(make lint:*)",
       "Bash(make:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(python -m pytest tests/test_quality_evaluator.py -v)",
+      "Bash(python -m pytest tests/test_want_plotter.py -v)",
+      "Bash(python -m pytest tests/test_report_generator.py -v)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/test_integration.py tests/test_quality_evaluator.py tests/test_want_plotter.py tests/test_report_generator.py -v)"
     ],
     "deny": []
   }
