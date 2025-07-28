@@ -227,6 +227,190 @@ class DataProcessor:
 
         return df_processed
 
+    def remove_outliers_advanced(
+        self,
+        df: pd.DataFrame,
+        method: str = "iqr_enhanced",
+        columns: list = None,
+        iqr_multiplier: float = 1.5,
+        group_by_column: str = None,
+    ) -> pd.DataFrame:
+        """
+        Phase 3: 強化された外れ値除去
+
+        Args:
+            df: 入力DataFrame
+            method: 外れ値検出方法 ('iqr_enhanced', 'zscore_robust', 'isolation_forest')
+            columns: 対象列（指定しない場合は数値列すべて）
+            iqr_multiplier: IQR法の倍率（デフォルト1.5、厳しくするなら1.0-1.2）
+            group_by_column: グループ別外れ値検出用の列名（商品名称など）
+
+        Returns:
+            外れ値除去後のDataFrame
+        """
+        self.logger.info(f"強化外れ値除去を開始 (方法: {method})")
+
+        if columns is None:
+            columns = df.select_dtypes(include=[np.number]).columns.tolist()
+
+        df_processed = df.copy()
+        initial_count = len(df_processed)
+
+        if method == "iqr_enhanced":
+            # グループ別IQR法（商品ごとに外れ値を検出）
+            if group_by_column and group_by_column in df_processed.columns:
+                outlier_mask = pd.Series([False] * len(df_processed), index=df_processed.index)
+
+                for group_name, group_data in df_processed.groupby(group_by_column):
+                    group_outlier_mask = pd.Series(
+                        [False] * len(group_data), index=group_data.index
+                    )
+
+                    for col in columns:
+                        if (
+                            col in group_data.columns and len(group_data) > 4
+                        ):  # 最低5個のデータが必要
+                            Q1 = group_data[col].quantile(0.25)
+                            Q3 = group_data[col].quantile(0.75)
+                            IQR = Q3 - Q1
+
+                            if IQR > 0:  # IQRが0より大きい場合のみ実行
+                                lower_bound = Q1 - iqr_multiplier * IQR
+                                upper_bound = Q3 + iqr_multiplier * IQR
+
+                                col_outliers = (group_data[col] < lower_bound) | (
+                                    group_data[col] > upper_bound
+                                )
+                                group_outlier_mask |= col_outliers
+
+                                outlier_count = col_outliers.sum()
+                                if outlier_count > 0:
+                                    self.logger.info(
+                                        f"{group_name} - {col}: {outlier_count} 件の外れ値を検出"
+                                    )
+
+                    outlier_mask[group_data.index] = group_outlier_mask
+
+                # 外れ値を除去
+                df_processed = df_processed[~outlier_mask]
+
+            else:
+                # 全体でのIQR法（従来の方法だが倍率調整可能）
+                for col in columns:
+                    if col in df_processed.columns:
+                        Q1 = df_processed[col].quantile(0.25)
+                        Q3 = df_processed[col].quantile(0.75)
+                        IQR = Q3 - Q1
+
+                        if IQR > 0:
+                            lower_bound = Q1 - iqr_multiplier * IQR
+                            upper_bound = Q3 + iqr_multiplier * IQR
+
+                            before_count = len(df_processed)
+                            df_processed = df_processed[
+                                (df_processed[col] >= lower_bound)
+                                & (df_processed[col] <= upper_bound)
+                            ]
+                            after_count = len(df_processed)
+                            removed = before_count - after_count
+
+                            if removed > 0:
+                                self.logger.info(f"{col}: {removed} 件の外れ値を除去")
+
+        elif method == "zscore_robust":
+            # より堅牢なZ-Score法（中央値とMADを使用）
+            if group_by_column and group_by_column in df_processed.columns:
+                outlier_mask = pd.Series([False] * len(df_processed), index=df_processed.index)
+
+                for group_name, group_data in df_processed.groupby(group_by_column):
+                    group_outlier_mask = pd.Series(
+                        [False] * len(group_data), index=group_data.index
+                    )
+
+                    for col in columns:
+                        if col in group_data.columns and len(group_data) > 4:
+                            # 中央値とMAD（Median Absolute Deviation）を使用
+                            median = group_data[col].median()
+                            mad = np.median(np.abs(group_data[col] - median))
+
+                            if mad > 0:
+                                modified_z_scores = 0.6745 * (group_data[col] - median) / mad
+                                col_outliers = np.abs(modified_z_scores) > 3.5
+                                group_outlier_mask |= col_outliers
+
+                                outlier_count = col_outliers.sum()
+                                if outlier_count > 0:
+                                    self.logger.info(
+                                        f"{group_name} - {col}: {outlier_count} 件の外れ値を検出"
+                                    )
+
+                    outlier_mask[group_data.index] = group_outlier_mask
+
+                df_processed = df_processed[~outlier_mask]
+            else:
+                # 全体での堅牢Z-Score法
+                for col in columns:
+                    if col in df_processed.columns:
+                        median = df_processed[col].median()
+                        mad = np.median(np.abs(df_processed[col] - median))
+
+                        if mad > 0:
+                            modified_z_scores = 0.6745 * (df_processed[col] - median) / mad
+                            outliers = np.abs(modified_z_scores) > 3.5
+
+                            before_count = len(df_processed)
+                            df_processed = df_processed[~outliers]
+                            after_count = len(df_processed)
+                            removed = before_count - after_count
+
+                            if removed > 0:
+                                self.logger.info(f"{col}: {removed} 件の外れ値を除去")
+
+        elif method == "isolation_forest":
+            # Isolation Forestを使用した多変量外れ値検出
+            try:
+                from sklearn.ensemble import IsolationForest
+
+                # 数値列のみを選択
+                numeric_data = df_processed[columns].select_dtypes(include=[np.number])
+
+                if len(numeric_data.columns) > 0 and len(numeric_data) > 10:
+                    # 欠損値を中央値で埋める
+                    numeric_data_filled = numeric_data.fillna(numeric_data.median())
+
+                    # Isolation Forest実行
+                    iso_forest = IsolationForest(contamination=0.1, random_state=42)
+                    outlier_labels = iso_forest.fit_predict(numeric_data_filled)
+
+                    # 外れ値（-1）を除去
+                    inlier_mask = outlier_labels == 1
+                    before_count = len(df_processed)
+                    df_processed = df_processed[inlier_mask]
+                    after_count = len(df_processed)
+                    removed = before_count - after_count
+
+                    self.logger.info(f"Isolation Forest: {removed} 件の多変量外れ値を除去")
+                else:
+                    self.logger.warning("Isolation Forest: データ不足のためスキップ")
+
+            except ImportError:
+                self.logger.warning("scikit-learn が利用できないため、Isolation Forest をスキップ")
+
+        total_removed = initial_count - len(df_processed)
+        removal_rate = (total_removed / initial_count) * 100 if initial_count > 0 else 0
+
+        self.logger.info(
+            f"強化外れ値除去完了: 合計 {total_removed} 件を除去 ({removal_rate:.2f}%)"
+        )
+
+        # 除去率が異常に高い場合は警告
+        if removal_rate > 20:
+            self.logger.warning(
+                f"外れ値除去率が高すぎます ({removal_rate:.2f}%)。パラメータの見直しを推奨します。"
+            )
+
+        return df_processed
+
     def create_basic_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         基本特徴量を生成する
@@ -363,8 +547,13 @@ class DataProcessor:
         # 2. 欠損値処理
         df_clean = self.handle_missing_values(df_clean)
 
-        # 3. 外れ値除去
-        df_clean = self.remove_outliers(df_clean, method="iqr")
+        # 3. Phase 3: 強化された外れ値除去（商品別IQR法）
+        df_clean = self.remove_outliers_advanced(
+            df_clean,
+            method="iqr_enhanced",
+            iqr_multiplier=1.2,  # より厳しい閾値
+            group_by_column="商品名称",
+        )
 
         # 4. 基本特徴量生成
         df_clean = self.create_basic_features(df_clean)

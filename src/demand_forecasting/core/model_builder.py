@@ -10,6 +10,22 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import KFold, TimeSeriesSplit, cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler
 
+try:
+    import xgboost as xgb
+
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    XGBOOST_AVAILABLE = False
+
+try:
+    from skopt import gp_minimize
+    from skopt.space import Real, Integer
+    from skopt.utils import use_named_args
+
+    BAYESIAN_OPT_AVAILABLE = True
+except ImportError:
+    BAYESIAN_OPT_AVAILABLE = False
+
 from ..utils.config import Config
 from ..utils.exceptions import ModelBuildingError
 from ..utils.logger import Logger
@@ -30,100 +46,160 @@ class ModelBuilder:
         self.model_config = config.get_model_config()
         self.scaler = StandardScaler()
         self.model = None
+        self.ensemble_models = {}
 
-    def build_model(self, X: pd.DataFrame, y: pd.Series) -> RandomForestRegressor:
+        if not XGBOOST_AVAILABLE:
+            self.logger.warning(
+                "XGBoost がインストールされていません。RandomForest のみ使用します。"
+            )
+
+        if not BAYESIAN_OPT_AVAILABLE:
+            self.logger.warning(
+                "scikit-optimize がインストールされていません。ベイズ最適化は利用できません。"
+            )
+
+    def build_model(self, X: pd.DataFrame, y: pd.Series, model_type: str = "ensemble") -> Any:
         """
         モデルを構築
 
         Args:
             X: 特徴量DataFrame
             y: ターゲットSeries
+            model_type: モデルタイプ ("random_forest", "xgboost", "ensemble")
 
         Returns:
-            訓練済みRandomForestRegressor
+            訓練済みモデル（アンサンブルの場合は辞書）
         """
-        self.logger.info("モデル構築を開始")
+        self.logger.info(f"モデル構築を開始: {model_type}")
 
         try:
-            # モデルパラメータ
-            n_estimators = self.model_config.get("n_estimators", 100)
-            max_depth = self.model_config.get("max_depth", 10)
-            random_state = self.model_config.get("random_state", 42)
-
-            # RandomForestRegressorを初期化
-            model = RandomForestRegressor(
-                n_estimators=n_estimators,
-                max_depth=max_depth,
-                random_state=random_state,
-                n_jobs=-1,
-            )
-
             # 特徴量の前処理
             X_processed = self._preprocess_features(X)
 
-            # モデル訓練
-            model.fit(X_processed, y)
-
-            self.model = model
-            self.logger.info(f"モデル構築完了: n_estimators={n_estimators}, max_depth={max_depth}")
-
-            return model
+            if model_type == "random_forest":
+                model = self._build_random_forest(X_processed, y)
+                self.model = model
+                return model
+            elif model_type == "xgboost":
+                if not XGBOOST_AVAILABLE:
+                    self.logger.warning("XGBoost が利用できません。RandomForest を使用します。")
+                    return self.build_model(X, y, "random_forest")
+                model = self._build_xgboost(X_processed, y)
+                self.model = model
+                return model
+            elif model_type == "ensemble":
+                models = self._build_ensemble(X_processed, y)
+                self.ensemble_models = models
+                return models
+            else:
+                raise ValueError(f"サポートされていないモデルタイプ: {model_type}")
 
         except Exception as e:
             raise ModelBuildingError(f"モデル構築エラー: {e}")
 
-    def train_with_cv(self, X: pd.DataFrame, y: pd.Series) -> Dict[str, Any]:
+    def train_with_cv(
+        self, X: pd.DataFrame, y: pd.Series, model_type: str = "ensemble"
+    ) -> Dict[str, Any]:
         """
         交差検証付きでモデルを訓練
 
         Args:
             X: 特徴量DataFrame
             y: ターゲットSeries
+            model_type: モデルタイプ ("random_forest", "xgboost", "ensemble")
 
         Returns:
             訓練結果辞書
         """
-        self.logger.info("交差検証付きモデル訓練を開始")
+        self.logger.info(f"交差検証付きモデル訓練を開始: {model_type}")
 
         try:
             # データの前処理
             X_processed = self._preprocess_features(X)
 
-            # データを訓練・テストに分割
-            X_train, X_test, y_train, y_test = train_test_split(
+            # データを訓練・テスト・検証に分割
+            X_temp, X_test, y_temp, y_test = train_test_split(
                 X_processed, y, test_size=0.2, random_state=42
+            )
+            X_train, X_val, y_train, y_val = train_test_split(
+                X_temp, y_temp, test_size=0.2, random_state=42
             )
 
             # モデル構築
-            model = self.build_model(pd.DataFrame(X_train, columns=X_processed.columns), y_train)
+            model = self.build_model(
+                pd.DataFrame(X_train, columns=X_processed.columns), y_train, model_type
+            )
 
             # 交差検証の実行
             cv_results = self._perform_cross_validation(X_processed, y)
 
-            # テストデータでの評価
-            test_results = self.evaluate_model(model, X_test, y_test)
+            # 評価実行
+            if model_type == "ensemble" and isinstance(model, dict):
+                # アンサンブルモデルの場合
 
-            # 訓練データでの評価（過学習検出用）
-            train_results = self.evaluate_model(model, X_train, y_train)
+                # 重み最適化
+                optimal_weights = self.optimize_ensemble_weights(
+                    model, pd.DataFrame(X_val, columns=X_processed.columns), y_val
+                )
 
-            # 過学習スコア計算
-            overfitting_score = self.detect_overfitting(
-                train_results["r2_score"], test_results["r2_score"]
-            )
+                # テストデータでの評価
+                test_pred = self.ensemble_predict(
+                    model, pd.DataFrame(X_test, columns=X_processed.columns), optimal_weights
+                )
+                test_results = self._evaluate_predictions(y_test, test_pred)
 
-            # 特徴量重要度計算
-            feature_importance = self.get_feature_importance(model, X_processed.columns.tolist())
+                # 訓練データでの評価（過学習検出用）
+                train_pred = self.ensemble_predict(
+                    model, pd.DataFrame(X_train, columns=X_processed.columns), optimal_weights
+                )
+                train_results = self._evaluate_predictions(y_train, train_pred)
 
-            # 結果を統合
-            results = {
-                "model": model,
-                "cv_scores": cv_results,
-                "train_metrics": train_results,
-                "test_metrics": test_results,
-                "overfitting_score": overfitting_score,
-                "feature_importance": feature_importance,
-                "feature_names": X_processed.columns.tolist(),
-            }
+                # 特徴量重要度（RandomForestから取得）
+                rf_model = model.get("random_forest")
+                if rf_model:
+                    feature_importance = self.get_feature_importance(
+                        rf_model, X_processed.columns.tolist()
+                    )
+                else:
+                    feature_importance = {}
+
+                # 結果に追加情報
+                results = {
+                    "model": model,
+                    "model_type": "ensemble",
+                    "ensemble_weights": optimal_weights,
+                    "cv_scores": cv_results,
+                    "train_metrics": train_results,
+                    "test_metrics": test_results,
+                    "overfitting_score": self.detect_overfitting(
+                        train_results["r2_score"], test_results["r2_score"]
+                    ),
+                    "feature_importance": feature_importance,
+                    "feature_names": X_processed.columns.tolist(),
+                }
+
+            else:
+                # 単一モデルの場合
+                test_results = self.evaluate_model(model, X_test, y_test)
+                train_results = self.evaluate_model(model, X_train, y_train)
+
+                # 特徴量重要度計算
+                feature_importance = self.get_feature_importance(
+                    model, X_processed.columns.tolist()
+                )
+
+                results = {
+                    "model": model,
+                    "model_type": model_type,
+                    "cv_scores": cv_results,
+                    "train_metrics": train_results,
+                    "test_metrics": test_results,
+                    "overfitting_score": self.detect_overfitting(
+                        train_results["r2_score"], test_results["r2_score"]
+                    ),
+                    "feature_importance": feature_importance,
+                    "feature_names": X_processed.columns.tolist(),
+                }
 
             self.logger.info("交差検証付きモデル訓練完了")
             return results
@@ -454,25 +530,27 @@ class ModelBuilder:
         except Exception as e:
             raise ModelBuildingError(f"モデル読み込みエラー: {e}")
 
-    def predict(self, model: Any, X: pd.DataFrame) -> np.ndarray:
+    def predict(self, model: Any, X: pd.DataFrame, weights: Dict[str, float] = None) -> np.ndarray:
         """
         予測を実行
 
         Args:
-            model: 訓練済みモデル
+            model: 訓練済みモデル（単一モデルまたはアンサンブル辞書）
             X: 特徴量DataFrame
+            weights: アンサンブルの場合の重み辞書
 
         Returns:
             予測結果
         """
         try:
-            # 特徴量前処理
-            X_processed = self._preprocess_features(X)
-
-            # 予測実行
-            predictions = model.predict(X_processed)
-
-            return predictions
+            if isinstance(model, dict):
+                # アンサンブルモデルの場合
+                return self.ensemble_predict(model, X, weights)
+            else:
+                # 単一モデルの場合
+                X_processed = self._preprocess_features(X)
+                predictions = model.predict(X_processed)
+                return predictions
 
         except Exception as e:
             raise ModelBuildingError(f"予測エラー: {e}")
@@ -487,8 +565,10 @@ class ModelBuilder:
         Returns:
             モデルサマリー辞書
         """
+        model_type = results.get("model_type", "RandomForestRegressor")
+
         summary = {
-            "model_type": "RandomForestRegressor",
+            "model_type": model_type,
             "cv_mean_r2": results["cv_scores"]["mean_score"],
             "cv_std_r2": results["cv_scores"]["std_score"],
             "test_r2": results["test_metrics"]["r2_score"],
@@ -496,7 +576,440 @@ class ModelBuilder:
             "test_mae": results["test_metrics"]["mae"],
             "overfitting_score": results["overfitting_score"],
             "n_features": len(results["feature_names"]),
-            "top_features": list(results["feature_importance"].keys())[:5],
+            "top_features": (
+                list(results["feature_importance"].keys())[:5]
+                if results["feature_importance"]
+                else []
+            ),
         }
 
+        # アンサンブルモデルの場合は追加情報
+        if model_type == "ensemble" and "ensemble_weights" in results:
+            summary["ensemble_weights"] = results["ensemble_weights"]
+            summary["ensemble_models"] = (
+                list(results["model"].keys()) if isinstance(results["model"], dict) else []
+            )
+
+        # ベイズ最適化情報（あれば追加）
+        if "optimization_results" in results:
+            summary["optimization_performed"] = True
+            summary["optimization_best_score"] = results["optimization_results"].get(
+                "best_score", 0.0
+            )
+        else:
+            summary["optimization_performed"] = False
+
         return summary
+
+    def _build_random_forest(self, X: pd.DataFrame, y: pd.Series) -> RandomForestRegressor:
+        """
+        RandomForestモデルを構築
+        """
+        n_estimators = self.model_config.get("n_estimators", 100)
+        max_depth = self.model_config.get("max_depth", 10)
+        random_state = self.model_config.get("random_state", 42)
+
+        # Phase 3: L1/L2正則化相当のパラメータ調整
+        min_samples_split = self.model_config.get("min_samples_split", 5)
+        min_samples_leaf = self.model_config.get("min_samples_leaf", 2)
+        max_features = self.model_config.get("max_features", "sqrt")
+
+        model = RandomForestRegressor(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            max_features=max_features,
+            random_state=random_state,
+            n_jobs=-1,
+        )
+
+        model.fit(X, y)
+        self.logger.info(
+            f"RandomForest構築完了: n_estimators={n_estimators}, max_depth={max_depth}"
+        )
+        return model
+
+    def _build_xgboost(self, X: pd.DataFrame, y: pd.Series) -> Any:
+        """
+        XGBoostモデルを構築
+        """
+        # XGBoostパラメータ（L1/L2正則化付き）
+        params = {
+            "n_estimators": self.model_config.get("xgb_n_estimators", 100),
+            "max_depth": self.model_config.get("xgb_max_depth", 6),
+            "learning_rate": self.model_config.get("xgb_learning_rate", 0.1),
+            "reg_alpha": self.model_config.get("xgb_reg_alpha", 0.1),  # L1正則化
+            "reg_lambda": self.model_config.get("xgb_reg_lambda", 1.0),  # L2正則化
+            "subsample": self.model_config.get("xgb_subsample", 0.8),
+            "colsample_bytree": self.model_config.get("xgb_colsample_bytree", 0.8),
+            "random_state": self.model_config.get("random_state", 42),
+            "n_jobs": -1,
+        }
+
+        model = xgb.XGBRegressor(**params)
+        model.fit(X, y)
+
+        self.logger.info(
+            f"XGBoost構築完了: n_estimators={params['n_estimators']}, L1={params['reg_alpha']}, L2={params['reg_lambda']}"
+        )
+        return model
+
+    def _build_ensemble(self, X: pd.DataFrame, y: pd.Series) -> Dict[str, Any]:
+        """
+        アンサンブルモデルを構築
+        """
+        self.logger.info("アンサンブルモデル構築開始")
+        models = {}
+
+        # RandomForest モデル
+        rf_model = self._build_random_forest(X, y)
+        models["random_forest"] = rf_model
+
+        # XGBoost モデル（利用可能な場合）
+        if XGBOOST_AVAILABLE:
+            xgb_model = self._build_xgboost(X, y)
+            models["xgboost"] = xgb_model
+        else:
+            self.logger.warning(
+                "XGBoost が利用できないため、RandomForest のみでアンサンブルを構成"
+            )
+
+        self.logger.info(f"アンサンブル構築完了: {list(models.keys())}")
+        return models
+
+    def ensemble_predict(
+        self, models: Dict[str, Any], X: pd.DataFrame, weights: Dict[str, float] = None
+    ) -> np.ndarray:
+        """
+        アンサンブル予測を実行
+
+        Args:
+            models: 訓練済みモデル辞書
+            X: 特徴量DataFrame
+            weights: モデル重み辞書（デフォルトは均等重み）
+
+        Returns:
+            アンサンブル予測結果
+        """
+        X_processed = self._preprocess_features(X)
+        predictions = {}
+
+        # 各モデルで予測
+        for name, model in models.items():
+            predictions[name] = model.predict(X_processed)
+
+        # 重み設定（デフォルトは均等重み）
+        if weights is None:
+            weights = {name: 1.0 / len(models) for name in models.keys()}
+
+        # 重み付き平均でアンサンブル予測
+        ensemble_pred = np.zeros(len(X_processed))
+        for name, pred in predictions.items():
+            ensemble_pred += weights.get(name, 0) * pred
+
+        self.logger.info(f"アンサンブル予測完了: 重み={weights}")
+        return ensemble_pred
+
+    def optimize_ensemble_weights(
+        self, models: Dict[str, Any], X_val: pd.DataFrame, y_val: pd.Series
+    ) -> Dict[str, float]:
+        """
+        検証データを使用してアンサンブル重みを最適化
+
+        Args:
+            models: 訓練済みモデル辞書
+            X_val: 検証特徴量
+            y_val: 検証ターゲット
+
+        Returns:
+            最適化された重み辞書
+        """
+        from scipy.optimize import minimize
+
+        X_val_processed = self._preprocess_features(X_val)
+
+        # 各モデルの予測を取得
+        predictions = {}
+        for name, model in models.items():
+            predictions[name] = model.predict(X_val_processed)
+
+        model_names = list(predictions.keys())
+        pred_matrix = np.column_stack([predictions[name] for name in model_names])
+
+        # 目的関数（RMSE最小化）
+        def objective(weights):
+            weights = weights / np.sum(weights)  # 正規化
+            ensemble_pred = np.dot(pred_matrix, weights)
+            rmse = np.sqrt(mean_squared_error(y_val, ensemble_pred))
+            return rmse
+
+        # 制約条件
+        constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1.0}]
+        bounds = [(0.0, 1.0) for _ in model_names]
+
+        # 初期値（均等重み）
+        x0 = np.ones(len(model_names)) / len(model_names)
+
+        # 最適化実行
+        result = minimize(objective, x0, method="SLSQP", bounds=bounds, constraints=constraints)
+
+        if result.success:
+            optimal_weights = dict(zip(model_names, result.x))
+            self.logger.info(f"アンサンブル重み最適化完了: {optimal_weights}")
+            return optimal_weights
+        else:
+            self.logger.warning("重み最適化に失敗、均等重みを使用")
+            return {name: 1.0 / len(model_names) for name in model_names}
+
+    def _evaluate_predictions(self, y_true: pd.Series, y_pred: np.ndarray) -> Dict[str, float]:
+        """
+        予測結果を評価（evaluate_modelの簡易版）
+
+        Args:
+            y_true: 実際の値
+            y_pred: 予測値
+
+        Returns:
+            評価メトリクス辞書
+        """
+        r2 = r2_score(y_true, y_pred)
+        rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+        mae = mean_absolute_error(y_true, y_pred)
+        mape = self._calculate_mape(y_true, y_pred)
+        wape = self._calculate_wape(y_true, y_pred)
+
+        return {
+            "r2_score": r2,
+            "rmse": rmse,
+            "mae": mae,
+            "mape": mape,
+            "wape": wape,
+            "n_samples": len(y_true),
+        }
+
+    def bayesian_hyperparameter_optimization(
+        self, X: pd.DataFrame, y: pd.Series, model_type: str = "random_forest", n_calls: int = 20
+    ) -> Dict[str, Any]:
+        """
+        ベイズ最適化によるハイパーパラメータ調整
+
+        Args:
+            X: 特徴量DataFrame
+            y: ターゲットSeries
+            model_type: モデルタイプ ("random_forest", "xgboost", "ensemble")
+            n_calls: 最適化の試行回数
+
+        Returns:
+            最適化結果辞書
+        """
+        if not BAYESIAN_OPT_AVAILABLE:
+            self.logger.warning("ベイズ最適化が利用できません。デフォルトパラメータを使用します。")
+            return {"best_params": {}, "best_score": 0.0, "optimization_history": []}
+
+        self.logger.info(f"ベイズ最適化開始: {model_type}, 試行回数={n_calls}")
+
+        X_processed = self._preprocess_features(X)
+
+        if model_type == "random_forest":
+            return self._optimize_random_forest(X_processed, y, n_calls)
+        elif model_type == "xgboost" and XGBOOST_AVAILABLE:
+            return self._optimize_xgboost(X_processed, y, n_calls)
+        elif model_type == "ensemble":
+            return self._optimize_ensemble(X_processed, y, n_calls)
+        else:
+            self.logger.warning(f"サポートされていないモデルタイプ: {model_type}")
+            return {"best_params": {}, "best_score": 0.0, "optimization_history": []}
+
+    def _optimize_random_forest(
+        self, X: pd.DataFrame, y: pd.Series, n_calls: int
+    ) -> Dict[str, Any]:
+        """
+        RandomForestのベイズ最適化
+        """
+        # パラメータ空間の定義
+        space = [
+            Integer(50, 300, name="n_estimators"),
+            Integer(5, 20, name="max_depth"),
+            Integer(2, 10, name="min_samples_split"),
+            Integer(1, 5, name="min_samples_leaf"),
+            Real(0.1, 1.0, name="max_features_ratio"),
+        ]
+
+        @use_named_args(space)
+        def objective(**params):
+            max_features = int(params["max_features_ratio"] * X.shape[1])
+            max_features = max(1, min(max_features, X.shape[1]))
+
+            model = RandomForestRegressor(
+                n_estimators=params["n_estimators"],
+                max_depth=params["max_depth"],
+                min_samples_split=params["min_samples_split"],
+                min_samples_leaf=params["min_samples_leaf"],
+                max_features=max_features,
+                random_state=42,
+                n_jobs=-1,
+            )
+
+            # TimeSeriesSplitで交差検証
+            tscv = TimeSeriesSplit(n_splits=5)
+            scores = cross_val_score(model, X, y, cv=tscv, scoring="r2")
+
+            # 負の値を返す（最小化問題として解く）
+            return -scores.mean()
+
+        # ベイズ最適化実行
+        result = gp_minimize(objective, space, n_calls=n_calls, random_state=42)
+
+        # 最適パラメータ
+        best_params = {
+            "n_estimators": result.x[0],
+            "max_depth": result.x[1],
+            "min_samples_split": result.x[2],
+            "min_samples_leaf": result.x[3],
+            "max_features": int(result.x[4] * X.shape[1]),
+        }
+
+        self.logger.info(f"RandomForest最適化完了: R² = {-result.fun:.4f}")
+        self.logger.info(f"最適パラメータ: {best_params}")
+
+        return {
+            "best_params": best_params,
+            "best_score": -result.fun,
+            "optimization_history": [-score for score in result.func_vals],
+        }
+
+    def _optimize_xgboost(self, X: pd.DataFrame, y: pd.Series, n_calls: int) -> Dict[str, Any]:
+        """
+        XGBoostのベイズ最適化
+        """
+        # パラメータ空間の定義
+        space = [
+            Integer(50, 300, name="n_estimators"),
+            Integer(3, 10, name="max_depth"),
+            Real(0.01, 0.3, name="learning_rate"),
+            Real(0.0, 1.0, name="reg_alpha"),  # L1正則化
+            Real(0.0, 2.0, name="reg_lambda"),  # L2正則化
+            Real(0.6, 1.0, name="subsample"),
+            Real(0.6, 1.0, name="colsample_bytree"),
+        ]
+
+        @use_named_args(space)
+        def objective(**params):
+            model = xgb.XGBRegressor(
+                n_estimators=params["n_estimators"],
+                max_depth=params["max_depth"],
+                learning_rate=params["learning_rate"],
+                reg_alpha=params["reg_alpha"],
+                reg_lambda=params["reg_lambda"],
+                subsample=params["subsample"],
+                colsample_bytree=params["colsample_bytree"],
+                random_state=42,
+                n_jobs=-1,
+            )
+
+            # TimeSeriesSplitで交差検証
+            tscv = TimeSeriesSplit(n_splits=5)
+            scores = cross_val_score(model, X, y, cv=tscv, scoring="r2")
+
+            return -scores.mean()
+
+        # ベイズ最適化実行
+        result = gp_minimize(objective, space, n_calls=n_calls, random_state=42)
+
+        # 最適パラメータ
+        best_params = {
+            "n_estimators": result.x[0],
+            "max_depth": result.x[1],
+            "learning_rate": result.x[2],
+            "reg_alpha": result.x[3],
+            "reg_lambda": result.x[4],
+            "subsample": result.x[5],
+            "colsample_bytree": result.x[6],
+        }
+
+        self.logger.info(f"XGBoost最適化完了: R² = {-result.fun:.4f}")
+        self.logger.info(f"最適パラメータ: {best_params}")
+
+        return {
+            "best_params": best_params,
+            "best_score": -result.fun,
+            "optimization_history": [-score for score in result.func_vals],
+        }
+
+    def _optimize_ensemble(self, X: pd.DataFrame, y: pd.Series, n_calls: int) -> Dict[str, Any]:
+        """
+        アンサンブルモデルのベイズ最適化
+        """
+        # より少ない試行回数で両モデルを最適化
+        rf_calls = n_calls // 2
+        xgb_calls = n_calls - rf_calls
+
+        # RandomForest最適化
+        rf_result = self._optimize_random_forest(X, y, rf_calls)
+
+        # XGBoost最適化（利用可能な場合）
+        xgb_result = {"best_params": {}, "best_score": 0.0, "optimization_history": []}
+        if XGBOOST_AVAILABLE:
+            xgb_result = self._optimize_xgboost(X, y, xgb_calls)
+
+        self.logger.info("アンサンブル最適化完了")
+
+        return {
+            "random_forest": rf_result,
+            "xgboost": xgb_result,
+            "best_combined_score": max(rf_result["best_score"], xgb_result["best_score"]),
+        }
+
+    def build_optimized_model(
+        self, X: pd.DataFrame, y: pd.Series, optimization_results: Dict[str, Any], model_type: str
+    ) -> Any:
+        """
+        最適化されたパラメータでモデルを構築
+
+        Args:
+            X: 特徴量DataFrame
+            y: ターゲットSeries
+            optimization_results: ベイズ最適化結果
+            model_type: モデルタイプ
+
+        Returns:
+            最適化済みモデル
+        """
+        X_processed = self._preprocess_features(X)
+
+        if model_type == "random_forest":
+            best_params = optimization_results["best_params"]
+            model = RandomForestRegressor(**best_params, random_state=42, n_jobs=-1)
+            model.fit(X_processed, y)
+            self.logger.info("最適化RandomForestモデル構築完了")
+            return model
+
+        elif model_type == "xgboost" and XGBOOST_AVAILABLE:
+            best_params = optimization_results["best_params"]
+            model = xgb.XGBRegressor(**best_params, random_state=42, n_jobs=-1)
+            model.fit(X_processed, y)
+            self.logger.info("最適化XGBoostモデル構築完了")
+            return model
+
+        elif model_type == "ensemble":
+            models = {}
+
+            # 最適化されたRandomForest
+            rf_params = optimization_results["random_forest"]["best_params"]
+            rf_model = RandomForestRegressor(**rf_params, random_state=42, n_jobs=-1)
+            rf_model.fit(X_processed, y)
+            models["random_forest"] = rf_model
+
+            # 最適化されたXGBoost（利用可能な場合）
+            if XGBOOST_AVAILABLE and optimization_results["xgboost"]["best_params"]:
+                xgb_params = optimization_results["xgboost"]["best_params"]
+                xgb_model = xgb.XGBRegressor(**xgb_params, random_state=42, n_jobs=-1)
+                xgb_model.fit(X_processed, y)
+                models["xgboost"] = xgb_model
+
+            self.logger.info("最適化アンサンブルモデル構築完了")
+            return models
+
+        else:
+            raise ValueError(f"サポートされていないモデルタイプ: {model_type}")

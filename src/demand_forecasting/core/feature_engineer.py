@@ -532,3 +532,189 @@ class FeatureEngineer:
 
         except Exception as e:
             raise FeatureEngineeringError(f"特徴量重要度計算エラー: {e}")
+
+    def add_lag_features(
+        self, df: pd.DataFrame, target_column: str = "数量", lag_days: List[int] = [1, 2, 3, 7]
+    ) -> pd.DataFrame:
+        """
+        ラグ特徴量（過去の売上）を追加
+
+        Args:
+            df: 入力DataFrame
+            target_column: ターゲット列名
+            lag_days: ラグ日数リスト
+
+        Returns:
+            ラグ特徴量追加後のDataFrame
+        """
+        self.logger.info(f"ラグ特徴量追加開始: {lag_days}日")
+
+        df_lag = df.copy()
+
+        try:
+            # 日付でソート
+            if "年月日" in df_lag.columns:
+                df_lag = df_lag.sort_values("年月日")
+
+            # 商品別にグループ化してラグ特徴量を作成
+            if "商品名称" in df_lag.columns:
+                for lag in lag_days:
+                    lag_col_name = f"{target_column}_lag{lag}日"
+                    df_lag[lag_col_name] = df_lag.groupby("商品名称")[target_column].shift(lag)
+
+                    # 欠損値は0で埋める（商品の販売開始初期の場合）
+                    df_lag[lag_col_name] = df_lag[lag_col_name].fillna(0)
+
+                    self.logger.info(f"追加: {lag_col_name}")
+            else:
+                # 商品名称がない場合は全体でラグ特徴量を作成
+                for lag in lag_days:
+                    lag_col_name = f"{target_column}_lag{lag}日"
+                    df_lag[lag_col_name] = df_lag[target_column].shift(lag).fillna(0)
+
+            self.logger.info("ラグ特徴量追加完了")
+
+        except Exception as e:
+            raise FeatureEngineeringError(f"ラグ特徴量追加エラー: {e}")
+
+        return df_lag
+
+    def add_moving_average_features(
+        self, df: pd.DataFrame, target_column: str = "数量", windows: List[int] = [3, 7, 14]
+    ) -> pd.DataFrame:
+        """
+        移動平均特徴量を追加
+
+        Args:
+            df: 入力DataFrame
+            target_column: ターゲット列名
+            windows: 移動平均ウィンドウサイズリスト
+
+        Returns:
+            移動平均特徴量追加後のDataFrame
+        """
+        self.logger.info(f"移動平均特徴量追加開始: {windows}日")
+
+        df_ma = df.copy()
+
+        try:
+            # 日付でソート
+            if "年月日" in df_ma.columns:
+                df_ma = df_ma.sort_values("年月日")
+
+            # 商品別にグループ化して移動平均を作成
+            if "商品名称" in df_ma.columns:
+                for window in windows:
+                    ma_col_name = f"{target_column}_移動平均{window}日"
+                    df_ma[ma_col_name] = (
+                        df_ma.groupby("商品名称")[target_column]
+                        .rolling(window=window, min_periods=1)
+                        .mean()
+                        .reset_index(0, drop=True)
+                    )
+
+                    # 移動平均の変化率も追加
+                    change_col_name = f"{target_column}_移動平均{window}日_変化率"
+                    df_ma[change_col_name] = (
+                        df_ma.groupby("商品名称")[ma_col_name].pct_change().fillna(0)
+                    )
+
+                    self.logger.info(f"追加: {ma_col_name}, {change_col_name}")
+            else:
+                # 商品名称がない場合は全体で移動平均を作成
+                for window in windows:
+                    ma_col_name = f"{target_column}_移動平均{window}日"
+                    df_ma[ma_col_name] = (
+                        df_ma[target_column].rolling(window=window, min_periods=1).mean()
+                    )
+
+                    change_col_name = f"{target_column}_移動平均{window}日_変化率"
+                    df_ma[change_col_name] = df_ma[ma_col_name].pct_change().fillna(0)
+
+            self.logger.info("移動平均特徴量追加完了")
+
+        except Exception as e:
+            raise FeatureEngineeringError(f"移動平均特徴量追加エラー: {e}")
+
+        return df_ma
+
+    def add_advanced_time_series_features(
+        self, df: pd.DataFrame, target_column: str = "数量"
+    ) -> pd.DataFrame:
+        """
+        Phase 3: 高度な時系列特徴量を統合して追加
+
+        Args:
+            df: 入力DataFrame
+            target_column: ターゲット列名
+
+        Returns:
+            高度な時系列特徴量追加後のDataFrame
+        """
+        self.logger.info("高度な時系列特徴量の統合開始")
+
+        df_advanced = df.copy()
+
+        try:
+            # 1. ラグ特徴量追加（1-7日前の売上）
+            df_advanced = self.add_lag_features(df_advanced, target_column, lag_days=[1, 2, 3, 7])
+
+            # 2. 移動平均特徴量追加（3, 7, 14日）
+            df_advanced = self.add_moving_average_features(
+                df_advanced, target_column, windows=[3, 7, 14]
+            )
+
+            # 3. 季節性特徴量（周期性パターン）
+            if "年月日" in df_advanced.columns:
+                df_advanced["年間通算日"] = df_advanced["年月日"].dt.dayofyear
+                df_advanced["月通算日"] = df_advanced["年月日"].dt.day
+
+                # 季節性の正弦・余弦変換（周期性を捉える）
+                df_advanced["年間周期_sin"] = np.sin(
+                    2 * np.pi * df_advanced["年間通算日"] / 365.25
+                )
+                df_advanced["年間周期_cos"] = np.cos(
+                    2 * np.pi * df_advanced["年間通算日"] / 365.25
+                )
+                df_advanced["月間周期_sin"] = np.sin(2 * np.pi * df_advanced["月通算日"] / 30.44)
+                df_advanced["月間周期_cos"] = np.cos(2 * np.pi * df_advanced["月通算日"] / 30.44)
+
+            # 4. 商品別集計特徴量
+            if "商品名称" in df_advanced.columns:
+                # 過去7日間の売上合計・平均・標準偏差
+                for window in [7, 14]:
+                    sum_col = f"{target_column}_過去{window}日間合計"
+                    std_col = f"{target_column}_過去{window}日間標準偏差"
+
+                    df_advanced[sum_col] = (
+                        df_advanced.groupby("商品名称")[target_column]
+                        .rolling(window=window, min_periods=1)
+                        .sum()
+                        .reset_index(0, drop=True)
+                    )
+
+                    df_advanced[std_col] = (
+                        df_advanced.groupby("商品名称")[target_column]
+                        .rolling(window=window, min_periods=1)
+                        .std()
+                        .fillna(0)
+                        .reset_index(0, drop=True)
+                    )
+
+            # 5. トレンド特徴量
+            if "商品名称" in df_advanced.columns:
+                # 短期（3日）と長期（14日）のトレンド比較
+                short_ma = f"{target_column}_移動平均3日"
+                long_ma = f"{target_column}_移動平均14日"
+
+                if short_ma in df_advanced.columns and long_ma in df_advanced.columns:
+                    df_advanced["トレンド指標"] = df_advanced[short_ma] / (
+                        df_advanced[long_ma] + 1e-8
+                    )  # ゼロ除算回避
+
+            self.logger.info("高度な時系列特徴量の統合完了")
+
+        except Exception as e:
+            raise FeatureEngineeringError(f"高度な時系列特徴量追加エラー: {e}")
+
+        return df_advanced
