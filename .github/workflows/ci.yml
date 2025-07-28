@@ -22,25 +22,23 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest black flake8 isort
-          pip install pandas numpy scikit-learn matplotlib pyyaml loguru
+          pip install pandas numpy scikit-learn matplotlib seaborn scipy pyyaml requests loguru typer tqdm python-dotenv shap mkdocs
 
       - name: Create directories
         run: |
-          mkdir -p data/raw data/processed reports logs
+          mkdir -p data/raw data/processed reports logs output models reports/figures
 
       - name: Syntax check
         run: |
           python -m py_compile src/main.py
           
-      - name: Basic test
+      - name: Run tests
         run: |
           export PYTHONPATH="${GITHUB_WORKSPACE}/src:$PYTHONPATH"
-          python -m pytest tests/test_data.py -v
+          python -m pytest tests/ -v --tb=short --maxfail=5
           
-      - name: Code formatting
+      - name: Code quality
         run: |
-          black --check src/
-          
-      - name: Success
-        run: |
-          echo "✅ CI passed successfully"
+          black --check src/ tests/
+          flake8 --max-line-length=99 src/ tests/
+          isort --check-only src/ tests/
