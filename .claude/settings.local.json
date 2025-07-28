@@ -22,7 +22,14 @@
       "Bash(gh pr checks:*)",
       "WebFetch(domain:github.com)",
       "Bash(isort:*)",
-      "Bash(/dev/null)"
+      "Bash(/dev/null)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(git stash:*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }
