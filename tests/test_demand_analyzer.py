@@ -1,6 +1,6 @@
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 
 from src.demand_forecasting.core.demand_analyzer import DemandCurveAnalyzer
 from src.demand_forecasting.utils.config import Config

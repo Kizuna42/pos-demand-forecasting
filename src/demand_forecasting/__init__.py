@@ -10,12 +10,12 @@ __version__ = "0.1.0"
 __author__ = "Data Science Team"
 
 from .core.data_processor import DataProcessor
+from .core.demand_analyzer import DemandCurveAnalyzer
 from .core.feature_engineer import FeatureEngineer
 from .core.model_builder import ModelBuilder
-from .core.demand_analyzer import DemandCurveAnalyzer
+from .reports.report_generator import ReportGenerator
 from .utils.quality_evaluator import QualityEvaluator
 from .visualization.want_plotter import WantPlotter
-from .reports.report_generator import ReportGenerator
 
 __all__ = [
     "DataProcessor",

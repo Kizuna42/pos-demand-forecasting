@@ -1,11 +1,13 @@
-import pandas as pd
-import numpy as np
-import chardet
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
+
+import chardet
+import numpy as np
+import pandas as pd
+
 from ..utils.config import Config
-from ..utils.logger import Logger
 from ..utils.exceptions import DataProcessingError
+from ..utils.logger import Logger
 
 
 class DataProcessor:

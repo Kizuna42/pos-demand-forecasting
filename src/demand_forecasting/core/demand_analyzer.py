@@ -1,13 +1,14 @@
-from typing import Dict, Any, Callable, Tuple, Optional
-import pandas as pd
+from typing import Any, Callable, Dict, Optional, Tuple
+
 import numpy as np
-from scipy.optimize import minimize_scalar, curve_fit
+import pandas as pd
+from scipy.optimize import curve_fit, minimize_scalar
 from scipy.signal import savgol_filter
 from sklearn.metrics import r2_score
 
 from ..utils.config import Config
-from ..utils.logger import Logger
 from ..utils.exceptions import DemandAnalysisError
+from ..utils.logger import Logger
 
 
 class DemandCurveAnalyzer:

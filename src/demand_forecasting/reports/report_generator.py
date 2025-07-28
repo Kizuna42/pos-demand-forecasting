@@ -1,11 +1,12 @@
-from typing import Dict, Any, List
-import pandas as pd
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List
+
+import pandas as pd
 
 from ..utils.config import Config
-from ..utils.logger import Logger
 from ..utils.exceptions import ReportGenerationError
+from ..utils.logger import Logger
 
 
 class ReportGenerator:

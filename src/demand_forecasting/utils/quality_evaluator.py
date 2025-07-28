@@ -1,7 +1,8 @@
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 from ..utils.config import Config
-from ..utils.logger import Logger
 from ..utils.exceptions import QualityEvaluationError
+from ..utils.logger import Logger
 
 
 class QualityEvaluator:

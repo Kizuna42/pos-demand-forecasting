@@ -1,9 +1,9 @@
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 
-from src.demand_forecasting.utils.quality_evaluator import QualityEvaluator
 from src.demand_forecasting.utils.config import Config
+from src.demand_forecasting.utils.quality_evaluator import QualityEvaluator
 
 
 class TestQualityEvaluator:

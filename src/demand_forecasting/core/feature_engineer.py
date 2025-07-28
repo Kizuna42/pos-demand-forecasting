@@ -1,11 +1,13 @@
-from typing import Dict, Any, List, Optional
-import pandas as pd
-import numpy as np
-import requests
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import pandas as pd
+import requests
+
 from ..utils.config import Config
+from ..utils.exceptions import ExternalAPIError, FeatureEngineeringError
 from ..utils.logger import Logger
-from ..utils.exceptions import FeatureEngineeringError, ExternalAPIError
 
 
 class FeatureEngineer:

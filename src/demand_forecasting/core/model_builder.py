@@ -1,17 +1,18 @@
-from typing import Dict, Any, List, Tuple, Optional
-import pandas as pd
-import numpy as np
-import pickle
 from pathlib import Path
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import cross_val_score, train_test_split, KFold
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.preprocessing import StandardScaler
+import pickle
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
 import shap
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import KFold, cross_val_score, train_test_split
+from sklearn.preprocessing import StandardScaler
 
 from ..utils.config import Config
-from ..utils.logger import Logger
 from ..utils.exceptions import ModelBuildingError
+from ..utils.logger import Logger
 
 
 class ModelBuilder:

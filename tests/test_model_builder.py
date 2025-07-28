@@ -1,8 +1,9 @@
-import pytest
-import pandas as pd
-import numpy as np
-import tempfile
 from pathlib import Path
+import tempfile
+
+import numpy as np
+import pandas as pd
+import pytest
 from sklearn.ensemble import RandomForestRegressor
 
 from src.demand_forecasting.core.model_builder import ModelBuilder

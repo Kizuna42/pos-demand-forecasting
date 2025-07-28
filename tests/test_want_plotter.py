@@ -1,13 +1,14 @@
-import pytest
-import pandas as pd
-import numpy as np
+import os
 from pathlib import Path
 import tempfile
-import os
 
-from src.demand_forecasting.visualization.want_plotter import WantPlotter
+import numpy as np
+import pandas as pd
+import pytest
+
 from src.demand_forecasting.utils.config import Config
 from src.demand_forecasting.utils.exceptions import VisualizationError
+from src.demand_forecasting.visualization.want_plotter import WantPlotter
 
 
 class TestWantPlotter:
