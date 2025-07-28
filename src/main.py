@@ -93,8 +93,15 @@ class DemandForecastingPipeline:
                     # 商品データを抽出
                     product_data = final_features[final_features["商品名称"] == product].copy()
 
-                    if len(product_data) < 10:
-                        self.logger.warning(f"データ不足により{product}をスキップ")
+                    if len(product_data) < 100:
+                        self.logger.warning(
+                            f"データ不足により{product}をスキップ (レコード数: {len(product_data)})"
+                        )
+                        continue
+
+                    # 時系列連続性・季節性チェック
+                    if not self._validate_time_series_quality(product_data, product):
+                        self.logger.warning(f"時系列品質不良により{product}をスキップ")
                         continue
 
                     result = self._analyze_single_product(product, product_data, final_features)
@@ -274,6 +281,72 @@ class DemandForecastingPipeline:
             self.logger.error(f"レポート生成エラー: {e}")
 
         return report_files
+
+    def _validate_time_series_quality(self, product_data: pd.DataFrame, product_name: str) -> bool:
+        """
+        時系列データの品質を検証
+
+        Args:
+            product_data: 商品データ
+            product_name: 商品名
+
+        Returns:
+            品質が十分ならTrue、不十分ならFalse
+        """
+        try:
+            # 日付列の存在確認
+            if "年月日" not in product_data.columns:
+                return False
+
+            # 日付順にソート
+            product_data_sorted = product_data.sort_values("年月日")
+
+            # 1. 時系列連続性チェック：データの期間をチェック
+            date_range = (
+                product_data_sorted["年月日"].max() - product_data_sorted["年月日"].min()
+            ).days
+            if date_range < 90:  # 3ヶ月未満のデータは除外
+                self.logger.warning(f"{product_name}: データ期間が短すぎます ({date_range}日)")
+                return False
+
+            # 2. データ密度チェック：期間に対するレコード数の密度
+            expected_records = date_range * 0.3  # 3日に1回程度の売上を期待
+            if len(product_data) < expected_records:
+                self.logger.warning(
+                    f"{product_name}: データ密度が低すぎます (期間:{date_range}日, レコード数:{len(product_data)})"
+                )
+                return False
+
+            # 3. 季節性パターンチェック：月次売上の分散をチェック
+            if "month" in product_data.columns or "月" in product_data.columns:
+                month_col = "month" if "month" in product_data.columns else "月"
+                monthly_sales = product_data.groupby(month_col)["数量"].sum()
+
+                # 月次売上の変動係数（CV）をチェック
+                cv = (
+                    monthly_sales.std() / monthly_sales.mean()
+                    if monthly_sales.mean() > 0
+                    else float("inf")
+                )
+                if cv > 2.0:  # 変動係数が2.0を超える場合は不安定すぎる
+                    self.logger.warning(
+                        f"{product_name}: 月次売上の不安定性が高すぎます (CV: {cv:.2f})"
+                    )
+                    return False
+
+            # 4. ゼロ売上期間チェック：連続するゼロ売上の期間をチェック
+            zero_sales_ratio = (product_data["数量"] == 0).sum() / len(product_data)
+            if zero_sales_ratio > 0.5:  # ゼロ売上が50%を超える場合
+                self.logger.warning(
+                    f"{product_name}: ゼロ売上の比率が高すぎます ({zero_sales_ratio:.1%})"
+                )
+                return False
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"{product_name}: 時系列品質検証中にエラー: {e}")
+            return False
 
     def _log_summary(self, results: Dict[str, Any]):
         """結果サマリーをログ出力"""

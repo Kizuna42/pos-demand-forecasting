@@ -58,13 +58,24 @@ class QualityEvaluator:
 
         quality_level = self.evaluate_quality_level(r2_score)
 
-        # 過学習チェック
-        overfitting_threshold = self.quality_config.get("overfitting_threshold", 0.1)
+        # 過学習チェック（厳格化）
+        overfitting_threshold = self.quality_config.get("overfitting_threshold", 0.01)
         is_overfitting = overfitting_score > overfitting_threshold
 
-        if quality_level == "Premium" and not is_overfitting:
+        # Train/Validation差によるさらなる過学習検知
+        cv_mean = model_metrics.get("cv_mean_r2", 0.0)
+        train_val_gap = abs(r2_score - cv_mean)
+        severe_overfitting = train_val_gap > 0.1  # Train/Val差が10%以上は重篤な過学習
+
+        if severe_overfitting:
+            self.logger.warning(f"重篤な過学習を検知: Train/Val差={train_val_gap:.3f}")
+            return "改善必要"
+        elif is_overfitting:
+            self.logger.warning(f"過学習を検知: スコア={overfitting_score:.3f}")
+            return "改善必要"
+        elif quality_level == "Premium":
             return "即座実行"
-        elif quality_level == "Standard" and not is_overfitting:
+        elif quality_level == "Standard":
             return "慎重実行"
         elif quality_level == "Basic":
             return "要考慮"
@@ -191,7 +202,7 @@ class QualityEvaluator:
             "implementation_readiness": self.assess_implementation_readiness(model_metrics),
             "cv_stability": "安定" if cv_std < 0.1 else "不安定" if cv_std > 0.2 else "普通",
             "overfitting_risk": (
-                "高" if overfitting_score > 0.2 else "低" if overfitting_score < 0.1 else "中"
+                "高" if overfitting_score > 0.01 else "低" if overfitting_score < 0.005 else "中"
             ),
             "performance_consistency": abs(r2_score - cv_mean) < 0.05,
         }

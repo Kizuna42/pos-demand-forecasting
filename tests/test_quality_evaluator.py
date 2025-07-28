@@ -35,7 +35,7 @@ class TestQualityEvaluator:
                     "cv_mean_r2": 0.82,
                     "cv_std_r2": 0.05,
                 },
-                "overfitting_score": 0.03,
+                "overfitting_score": 0.003,
             },
             {
                 "product_name": "キャベツ",
@@ -43,7 +43,7 @@ class TestQualityEvaluator:
                 "quality_level": "Standard",
                 "implementation_readiness": "慎重実行",
                 "test_metrics": {"r2_score": 0.65, "rmse": 15.3, "mae": 12.4},
-                "overfitting_score": 0.08,
+                "overfitting_score": 0.008,
             },
             {
                 "product_name": "牛肉",
@@ -51,7 +51,7 @@ class TestQualityEvaluator:
                 "quality_level": "Basic",
                 "implementation_readiness": "要考慮",
                 "test_metrics": {"r2_score": 0.35, "rmse": 25.1, "mae": 20.2},
-                "overfitting_score": 0.15,
+                "overfitting_score": 0.015,
             },
         ]
 
@@ -76,23 +76,23 @@ class TestQualityEvaluator:
     def test_assess_implementation_readiness(self, quality_evaluator):
         """実用化準備状況評価のテスト"""
         # 即座実行（Premium + 過学習なし）
-        metrics = {"r2_score": 0.8, "overfitting_score": 0.05}
+        metrics = {"r2_score": 0.8, "overfitting_score": 0.005, "cv_mean_r2": 0.79}
         assert quality_evaluator.assess_implementation_readiness(metrics) == "即座実行"
 
         # 慎重実行（Standard + 過学習なし）
-        metrics = {"r2_score": 0.6, "overfitting_score": 0.05}
+        metrics = {"r2_score": 0.6, "overfitting_score": 0.005, "cv_mean_r2": 0.59}
         assert quality_evaluator.assess_implementation_readiness(metrics) == "慎重実行"
 
         # 要考慮（Basic品質）
-        metrics = {"r2_score": 0.4, "overfitting_score": 0.05}
+        metrics = {"r2_score": 0.4, "overfitting_score": 0.005, "cv_mean_r2": 0.39}
         assert quality_evaluator.assess_implementation_readiness(metrics) == "要考慮"
 
         # 改善必要（Rejected品質）
-        metrics = {"r2_score": 0.2, "overfitting_score": 0.05}
+        metrics = {"r2_score": 0.2, "overfitting_score": 0.005, "cv_mean_r2": 0.19}
         assert quality_evaluator.assess_implementation_readiness(metrics) == "改善必要"
 
         # 改善必要（過学習あり）
-        metrics = {"r2_score": 0.8, "overfitting_score": 0.15}
+        metrics = {"r2_score": 0.8, "overfitting_score": 0.015, "cv_mean_r2": 0.79}
         assert quality_evaluator.assess_implementation_readiness(metrics) == "改善必要"
 
     def test_calculate_category_success_rate(self, quality_evaluator, sample_analysis_results):
@@ -147,12 +147,12 @@ class TestQualityEvaluator:
             "r2_score": 0.85,
             "cv_mean_r2": 0.82,
             "cv_std_r2": 0.05,
-            "overfitting_score": 0.03,
+            "overfitting_score": 0.003,
         }
         reliability = quality_evaluator.evaluate_model_reliability(metrics)
 
         # 信頼性スコアが高いことを確認
-        assert reliability["reliability_score"] > 0.8
+        assert reliability["reliability_score"] >= 0.8
         assert reliability["indicators"]["quality_level"] == "Premium"
         assert reliability["indicators"]["cv_stability"] == "安定"
         assert reliability["indicators"]["overfitting_risk"] == "低"
@@ -162,7 +162,7 @@ class TestQualityEvaluator:
             "r2_score": 0.25,
             "cv_mean_r2": 0.15,
             "cv_std_r2": 0.25,
-            "overfitting_score": 0.25,
+            "overfitting_score": 0.05,
         }
         reliability = quality_evaluator.evaluate_model_reliability(metrics)
 

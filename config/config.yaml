@@ -33,7 +33,7 @@ quality:
     standard: 0.5
     basic: 0.3
 
-  overfitting_threshold: 0.1
+  overfitting_threshold: 0.01
 
 visualization:
   output_dir: "output/visualizations"
