@@ -1,0 +1,229 @@
+# 生鮮食品需要予測・分析システム設定ファイル
+# このファイルをコピーして config.yaml として使用してください
+
+# データ設定
+data:
+  # 生データファイルのパス（Shift-JIS エンコーディング対応）
+  raw_data_path: "data/raw/納品用_20240101_20241231_生鮮全品data.csv"
+  
+  # 処理済みデータの保存先
+  processed_dir: "data/processed"
+  
+  # ファイルエンコーディング（auto で自動検出）
+  encoding: "auto"
+  
+  # データ検証設定
+  validation:
+    min_records_per_product: 10  # 商品あたり最小レコード数
+    required_columns:            # 必須列
+      - "商品コード"
+      - "商品名称"
+      - "年月日"
+      - "金額"
+      - "数量"
+      - "平均価格"
+
+# 特徴量エンジニアリング設定
+feature_engineering:
+  # ベースライン特徴量
+  baseline_features:
+    price_bands: [0, 100, 200, 500, 1000, 2000]  # 価格帯区分
+    create_unit_price: true                      # 単価計算
+    create_revenue: true                         # 売上計算
+    
+  # 時間特徴量
+  time_features:
+    include_holidays: true          # 祝日特徴量を含める
+    time_zones: ["Asia/Tokyo"]      # タイムゾーン
+    business_hours:                 # 営業時間定義
+      start: 9
+      end: 21
+    weekend_effect: true            # 週末効果を考慮
+    
+  # 気象特徴量
+  weather:
+    api_endpoint: "https://api.open-meteo.com/v1/forecast"
+    fallback_enabled: true          # API失敗時の代替データ生成
+    location:                       # 取得地点（例：東京）
+      latitude: 35.6762
+      longitude: 139.6503
+    variables:                      # 取得する気象要素
+      - "temperature_2m"
+      - "relative_humidity_2m"
+      - "precipitation"
+      - "weather_code"
+    smoothing:
+      method: "savgol"              # Savitzky-Golay平滑化
+      window_length: 7
+      polyorder: 3
+
+# 機械学習モデル設定
+model:
+  # アルゴリズム設定
+  algorithm: "RandomForest"
+  random_state: 42
+  
+  # RandomForest パラメータ
+  n_estimators: 100                 # 決定木の数
+  max_depth: 10                     # 最大深度
+  min_samples_split: 5              # 分割に必要な最小サンプル数
+  min_samples_leaf: 2               # 葉ノードの最小サンプル数
+  max_features: "sqrt"              # 特徴量選択数
+  
+  # データ分割設定
+  test_size: 0.2                    # テストデータの割合
+  validation_size: 0.2              # 検証データの割合
+  
+  # 交差検証設定
+  cv_folds: 5                       # 交差検証のフォールド数
+  cv_scoring: "r2"                  # 評価指標
+  
+  # 特徴量重要度・解釈性
+  shap_analysis: true               # SHAP分析を実行
+  feature_importance_threshold: 0.01 # 重要度の最小値
+
+# 需要曲線分析設定
+demand_analysis:
+  # 価格範囲設定
+  price_range_factor: 1.5           # 現在価格の±何倍まで分析するか
+  price_points: 50                  # 分析する価格ポイント数
+  
+  # 回帰モデル設定
+  curve_fitting:
+    models: ["linear", "polynomial", "exponential"]  # 使用するモデル
+    polynomial_degree: 2            # 多項式の次数
+    
+  # 外れ値処理
+  outlier_removal:
+    method: "iqr"                   # IQR法
+    factor: 1.5                     # IQR倍数
+    
+  # 平滑化設定
+  smoothing:
+    enabled: true
+    method: "savgol"
+    window_length: 5
+    polyorder: 2
+
+# 品質評価設定
+quality:
+  # 品質レベル閾値
+  thresholds:
+    premium: 0.7                    # Premium品質のR²閾値
+    standard: 0.5                   # Standard品質のR²閾値
+    basic: 0.3                      # Basic品質のR²閾値
+    # < 0.3 は自動的にRejected
+    
+  # 過学習検出
+  overfitting_threshold: 0.1        # 訓練・テストスコア差の許容値
+  
+  # 実用化準備評価
+  implementation:
+    cv_stability_threshold: 0.15    # 交差検証安定性の閾値
+    minimum_samples: 30             # 分析に必要な最小サンプル数
+    
+  # カテゴリ別評価
+  category_analysis: true           # カテゴリ別成功率分析
+
+# 可視化設定
+visualization:
+  # 出力設定
+  output_dir: "output/visualizations"
+  dpi: 300                          # 画像解像度
+  figsize: [12, 8]                  # 図のサイズ
+  
+  # カラーパレット（Want風）
+  colors:
+    primary: "#FF6B35"              # メインカラー（オレンジ）
+    secondary: "#004E89"            # サブカラー（ネイビー）
+    accent: "#1A936F"               # アクセント（グリーン）
+    background: "#F7F9FA"           # 背景色
+    success: "#27AE60"              # 成功色
+    warning: "#F39C12"              # 警告色
+    error: "#E74C3C"                # エラー色
+    
+  # フォント設定
+  font:
+    family: ["DejaVu Sans", "Hiragino Sans", "Yu Gothic", "Meiryo"]
+    size: 12
+    title_size: 16
+    
+  # プロット種別ごとの設定
+  plots:
+    demand_curve:
+      show_confidence_interval: true
+      highlight_optimal_price: true
+    feature_importance:
+      max_features: 15              # 表示する最大特徴量数
+      orientation: "horizontal"     # 横棒グラフ
+    quality_dashboard:
+      grid_layout: [2, 2]           # 2x2グリッド
+
+# レポート生成設定
+reporting:
+  # 出力形式
+  formats: ["markdown", "csv"]      # 生成するレポート形式
+  
+  # 出力ディレクトリ
+  output_dir: "reports"
+  
+  # Markdownレポート設定
+  markdown:
+    include_toc: true               # 目次を含める
+    include_plots: true             # プロットを埋め込む
+    max_products_detail: 5          # 詳細表示する最大商品数
+    
+  # CSVレポート設定
+  csv:
+    encoding: "utf-8-sig"           # BOM付きUTF-8（Excel対応）
+    include_index: false            # インデックス列を含めない
+    
+  # 品質サマリー
+  quality_summary:
+    include_recommendations: true   # 改善提案を含める
+    include_implementation_plan: true # 実装計画を含める
+
+# ログ設定
+logging:
+  # ログレベル: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  
+  # ログファイル
+  file: "logs/demand_forecasting.log"
+  
+  # コンソール出力
+  console: true
+  
+  # ログフォーマット
+  format: "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"
+  
+  # ログローテーション
+  rotation:
+    max_bytes: 10485760             # 10MB
+    backup_count: 5                 # 5世代保持
+
+# パフォーマンス設定
+performance:
+  # 並列処理
+  max_workers: 4                    # 最大ワーカー数（CPUコア数に応じて調整）
+  
+  # メモリ管理
+  chunk_size: 10000                 # データ処理チャンクサイズ
+  
+  # キャッシュ設定
+  cache:
+    enabled: true                   # キャッシュを有効化
+    ttl: 3600                       # キャッシュ生存時間（秒）
+    
+# 実験設定（上級者向け）
+experimental:
+  # 新機能のフラグ
+  enable_ensemble_methods: false    # アンサンブル手法
+  enable_deep_features: false       # 深層特徴量
+  enable_auto_ml: false             # 自動ML機能
+  
+  # A/Bテスト設定
+  ab_testing:
+    enabled: false
+    control_ratio: 0.5              # コントロール群の割合
