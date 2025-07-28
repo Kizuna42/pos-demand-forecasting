@@ -61,7 +61,7 @@ class QualityEvaluator:
         # 過学習チェック（厳格化）
         overfitting_threshold = self.quality_config.get("overfitting_threshold", 0.01)
         is_overfitting = overfitting_score > overfitting_threshold
-        
+
         # Train/Validation差によるさらなる過学習検知
         cv_mean = model_metrics.get("cv_mean_r2", 0.0)
         train_val_gap = abs(r2_score - cv_mean)
