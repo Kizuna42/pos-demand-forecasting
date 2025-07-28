@@ -41,16 +41,11 @@ jobs:
         run: |
           echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src" >> $GITHUB_ENV
           
-      - name: Basic import test
+      - name: Run simple test (imports tested implicitly)
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)/src
-          python -c "import sys; sys.path.insert(0, 'src'); import demand_forecasting; print('Import successful')"
+          python -m pytest tests/test_data.py -v
           
       - name: Check code formatting
         run: |
           black --check src/ tests/
-          
-      - name: Run simple test
-        run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)/src
-          python -m pytest tests/test_data.py -v
