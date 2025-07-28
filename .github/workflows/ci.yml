@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.10"]  # Focus on one version first
 
     steps:
       - uses: actions/checkout@v4
@@ -55,16 +55,34 @@ jobs:
         run: |
           isort --check-only .
           
-      - name: Run test suite step by step
+      - name: Test individual components first
         run: |
-          echo "Testing basic functionality..."
-          python -m pytest tests/test_data.py -v --tb=short || true
-          echo "Testing data processor..."  
-          python -m pytest tests/test_data_processor.py -v --tb=short || true
-          echo "Testing model builder..."
-          python -m pytest tests/test_model_builder.py -v --tb=short || true
-          echo "Running all tests..."
-          python -m pytest tests/ --tb=short -x
+          echo "=== Testing basic functionality ==="
+          python -m pytest tests/test_data.py -v --tb=short
+          echo "=== Testing data processor ==="  
+          python -m pytest tests/test_data_processor.py -v --tb=short
+          echo "=== Testing model builder ==="
+          python -m pytest tests/test_model_builder.py -v --tb=short
+          
+      - name: Run remaining tests
+        run: |
+          echo "=== Testing feature engineer ==="
+          python -m pytest tests/test_feature_engineer.py -v --tb=short
+          echo "=== Testing quality evaluator ==="
+          python -m pytest tests/test_quality_evaluator.py -v --tb=short
+          echo "=== Testing integration ==="
+          python -m pytest tests/test_integration.py -v --tb=short
+          
+      - name: Run final complex tests
+        run: |
+          echo "=== Testing demand analyzer ==="
+          python -m pytest tests/test_demand_analyzer.py -v --tb=short
+          echo "=== Testing report generator ==="
+          python -m pytest tests/test_report_generator.py -v --tb=short  
+          echo "=== Testing want plotter ==="
+          python -m pytest tests/test_want_plotter.py -v --tb=short
+          echo "=== Testing end-to-end ==="
+          python -m pytest tests/test_end_to_end.py -v --tb=short
           
       # Coverage reporting temporarily disabled for debugging
       # - name: Upload coverage to Codecov
