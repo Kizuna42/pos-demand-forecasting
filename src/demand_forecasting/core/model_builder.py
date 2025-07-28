@@ -7,7 +7,7 @@ import pandas as pd
 import shap
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import KFold, cross_val_score, train_test_split
+from sklearn.model_selection import KFold, TimeSeriesSplit, cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler
 
 from ..utils.config import Config
@@ -157,7 +157,7 @@ class ModelBuilder:
 
     def _perform_cross_validation(self, X: pd.DataFrame, y: pd.Series) -> Dict[str, Any]:
         """
-        交差検証を実行
+        交差検証を実行（TimeSeriesSplit使用）
 
         Args:
             X: 特徴量DataFrame
@@ -168,8 +168,8 @@ class ModelBuilder:
         """
         cv_folds = self.model_config.get("cv_folds", 5)
 
-        # KFold設定
-        kfold = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+        # Phase 2: TimeSeriesSplitを使用（時系列データに適した分割）
+        tscv = TimeSeriesSplit(n_splits=cv_folds)
 
         # モデル初期化
         model = RandomForestRegressor(
@@ -179,18 +179,30 @@ class ModelBuilder:
             n_jobs=-1,
         )
 
-        # 交差検証スコア計算
-        cv_scores = cross_val_score(model, X, y, cv=kfold, scoring="r2")
+        # TimeSeriesSplitで交差検証スコア計算
+        cv_scores = cross_val_score(model, X, y, cv=tscv, scoring="r2")
+
+        # 追加メトリクス計算
+        mae_scores = cross_val_score(model, X, y, cv=tscv, scoring="neg_mean_absolute_error")
+        mse_scores = cross_val_score(model, X, y, cv=tscv, scoring="neg_mean_squared_error")
 
         cv_results = {
             "mean_score": cv_scores.mean(),
             "std_score": cv_scores.std(),
             "scores": cv_scores.tolist(),
             "folds": cv_folds,
+            "cv_method": "TimeSeriesSplit",
+            "mae_scores": (-mae_scores).tolist(),
+            "rmse_scores": np.sqrt(-mse_scores).tolist(),
+            "out_of_sample_months": 3,  # 約3ヶ月のOut-of-sample期間
         }
 
         self.logger.info(
-            f"交差検証結果: R² = {cv_results['mean_score']:.4f} ± {cv_results['std_score']:.4f}"
+            f"時系列交差検証結果: R² = {cv_results['mean_score']:.4f} ± {cv_results['std_score']:.4f}"
+        )
+        self.logger.info(
+            f"Out-of-sample評価: MAE = {np.mean(cv_results['mae_scores']):.4f}, "
+            f"RMSE = {np.mean(cv_results['rmse_scores']):.4f}"
         )
 
         return cv_results
@@ -199,7 +211,7 @@ class ModelBuilder:
         self, model: Any, X_test: pd.DataFrame, y_test: pd.Series
     ) -> Dict[str, float]:
         """
-        モデル性能を評価
+        モデル性能を評価（複数指標）
 
         Args:
             model: 訓練済みモデル
@@ -213,30 +225,98 @@ class ModelBuilder:
             # 予測実行
             y_pred = model.predict(X_test)
 
-            # メトリクス計算
+            # 基本メトリクス計算
             r2 = r2_score(y_test, y_pred)
             rmse = np.sqrt(mean_squared_error(y_test, y_pred))
             mae = mean_absolute_error(y_test, y_pred)
 
-            # 予測値の統計
+            # Phase 2: 追加評価指標
+            # MAPE (Mean Absolute Percentage Error)
+            mape = self._calculate_mape(y_test, y_pred)
+
+            # WAPE (Weighted Absolute Percentage Error)
+            wape = self._calculate_wape(y_test, y_pred)
+
+            # 予測精度の分布統計
             pred_mean = np.mean(y_pred)
             pred_std = np.std(y_pred)
+
+            # 誤差分析
+            errors = y_test - y_pred
+            error_mean = np.mean(errors)
+            error_std = np.std(errors)
+
+            # 予測区間の精度（±1σ内の的中率）
+            within_1sigma = np.mean(np.abs(errors) <= error_std)
+            within_2sigma = np.mean(np.abs(errors) <= 2 * error_std)
 
             metrics = {
                 "r2_score": r2,
                 "rmse": rmse,
                 "mae": mae,
+                "mape": mape,
+                "wape": wape,
                 "pred_mean": pred_mean,
                 "pred_std": pred_std,
+                "error_mean": error_mean,
+                "error_std": error_std,
+                "within_1sigma": within_1sigma,
+                "within_2sigma": within_2sigma,
                 "n_samples": len(y_test),
             }
 
-            self.logger.info(f"モデル評価: R²={r2:.4f}, RMSE={rmse:.2f}, MAE={mae:.2f}")
+            self.logger.info(
+                f"モデル評価: R²={r2:.4f}, RMSE={rmse:.2f}, MAE={mae:.2f}, "
+                f"MAPE={mape:.2f}%, WAPE={wape:.2f}%"
+            )
 
             return metrics
 
         except Exception as e:
             raise ModelBuildingError(f"モデル評価エラー: {e}")
+
+    def _calculate_mape(self, y_true: pd.Series, y_pred: np.ndarray) -> float:
+        """
+        MAPE（平均絶対パーセント誤差）を計算
+
+        Args:
+            y_true: 実際の値
+            y_pred: 予測値
+
+        Returns:
+            MAPE値（%）
+        """
+        try:
+            # ゼロ除算を回避
+            mask = y_true != 0
+            if mask.sum() == 0:
+                return float("inf")
+
+            mape = np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
+            return float(mape)
+        except:
+            return float("inf")
+
+    def _calculate_wape(self, y_true: pd.Series, y_pred: np.ndarray) -> float:
+        """
+        WAPE（重み付き絶対パーセント誤差）を計算
+
+        Args:
+            y_true: 実際の値
+            y_pred: 予測値
+
+        Returns:
+            WAPE値（%）
+        """
+        try:
+            total_true = y_true.sum()
+            if total_true == 0:
+                return float("inf")
+
+            wape = (np.sum(np.abs(y_true - y_pred)) / total_true) * 100
+            return float(wape)
+        except:
+            return float("inf")
 
     def get_feature_importance(self, model: Any, feature_names: List[str]) -> Dict[str, float]:
         """

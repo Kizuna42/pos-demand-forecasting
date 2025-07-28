@@ -77,9 +77,10 @@ class DemandForecastingPipeline:
 
             # 3. 分析対象商品の決定
             if target_products is None:
-                # データ量の多い上位商品を選択
-                product_counts = final_features["商品名称"].value_counts()
-                target_products = product_counts.head(max_products).index.tolist()
+                # Phase 2: 層化サンプリングで代表商品を選択
+                target_products = self.data_processor.stratified_product_sampling(
+                    final_features, max_products=max_products
+                )
 
             self.logger.info(f"分析対象商品: {len(target_products)}商品")
 
@@ -376,7 +377,7 @@ def main():
         pipeline = DemandForecastingPipeline(args.config)
 
         if args.verbose:
-            pipeline.logger.logger.setLevel("DEBUG")
+            pipeline.logger.setLevel("DEBUG")
 
         results = pipeline.run_full_analysis(
             target_products=args.products, max_products=args.max_products

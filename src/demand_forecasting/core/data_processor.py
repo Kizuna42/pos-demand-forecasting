@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import chardet
 import numpy as np
@@ -395,3 +395,184 @@ class DataProcessor:
 
         except Exception as e:
             raise DataProcessingError(f"データ保存エラー: {e}")
+
+    def stratified_product_sampling(
+        self, df: pd.DataFrame, max_products: int = 150, min_products_per_category: int = 10
+    ) -> List[str]:
+        """
+        層化サンプリングで代表商品を選択
+
+        Args:
+            df: 入力DataFrame
+            max_products: 最大商品数
+            min_products_per_category: カテゴリ別最低商品数
+
+        Returns:
+            選択された商品名リスト
+        """
+        try:
+            self.logger.info("層化サンプリングによる商品選択を開始")
+
+            # 商品別の基本統計を計算
+            product_stats = (
+                df.groupby("商品名称")
+                .agg(
+                    {
+                        "数量": ["sum", "mean", "std", "count"],
+                        "金額": ["sum", "mean"],
+                        "商品カテゴリ": "first",
+                        "年月日": ["min", "max"],
+                    }
+                )
+                .reset_index()
+            )
+
+            # 列名を平坦化
+            product_stats.columns = [
+                "商品名称",
+                "総販売数量",
+                "平均販売数量",
+                "販売数量標準偏差",
+                "レコード数",
+                "総売上金額",
+                "平均売上金額",
+                "商品カテゴリ",
+                "最初販売日",
+                "最終販売日",
+            ]
+
+            # データ期間を計算
+            product_stats["販売期間_日"] = (
+                product_stats["最終販売日"] - product_stats["最初販売日"]
+            ).dt.days + 1
+
+            # 売上規模でカテゴライズ（大・中・小）
+            total_revenue_quantiles = product_stats["総売上金額"].quantile([0.33, 0.67])
+
+            def categorize_revenue_size(revenue):
+                if revenue >= total_revenue_quantiles[0.67]:
+                    return "大規模"
+                elif revenue >= total_revenue_quantiles[0.33]:
+                    return "中規模"
+                else:
+                    return "小規模"
+
+            product_stats["売上規模"] = product_stats["総売上金額"].apply(categorize_revenue_size)
+
+            # カテゴリ別の商品数を確認
+            category_counts = product_stats["商品カテゴリ"].value_counts()
+            self.logger.info(f"カテゴリ別商品数: {dict(category_counts)}")
+
+            selected_products = []
+
+            # カテゴリ別に層化サンプリング
+            for category in category_counts.index:
+                category_products = product_stats[product_stats["商品カテゴリ"] == category]
+
+                # カテゴリの割当商品数を計算（全体に占める比率に基づく）
+                category_ratio = len(category_products) / len(product_stats)
+                target_count = max(min_products_per_category, int(max_products * category_ratio))
+                target_count = min(target_count, len(category_products))
+
+                # 売上規模別にバランスよく選択
+                size_groups = category_products.groupby("売上規模")
+                category_selected = []
+
+                for size_group_name, size_group in size_groups:
+                    # 売上規模グループ別の割当数
+                    size_ratio = len(size_group) / len(category_products)
+                    size_target = max(1, int(target_count * size_ratio))
+                    size_target = min(size_target, len(size_group))
+
+                    # データ品質が高い商品を優先選択
+                    # 評価基準: レコード数, 販売期間, 売上安定性
+                    size_group_scored = size_group.copy()
+
+                    # スコア計算（正規化）
+                    size_group_scored["レコード数_正規化"] = (
+                        size_group_scored["レコード数"] / size_group_scored["レコード数"].max()
+                    )
+                    size_group_scored["販売期間_正規化"] = (
+                        size_group_scored["販売期間_日"] / size_group_scored["販売期間_日"].max()
+                    )
+                    size_group_scored["安定性スコア"] = 1 / (
+                        1
+                        + size_group_scored["販売数量標準偏差"].fillna(0)
+                        / size_group_scored["平均販売数量"].replace(0, 1)
+                    )
+
+                    # 総合スコア（重み付き平均）
+                    size_group_scored["総合スコア"] = (
+                        0.4 * size_group_scored["レコード数_正規化"]
+                        + 0.3 * size_group_scored["販売期間_正規化"]
+                        + 0.3 * size_group_scored["安定性スコア"]
+                    )
+
+                    # 上位商品を選択
+                    top_products = size_group_scored.nlargest(size_target, "総合スコア")
+                    category_selected.extend(top_products["商品名称"].tolist())
+
+                selected_products.extend(category_selected)
+
+                self.logger.info(
+                    f"カテゴリ '{category}': {len(category_selected)}商品選択 "
+                    f"(大規模:{len([p for p in category_selected if p in category_products[category_products['売上規模']=='大規模']['商品名称'].values])}, "
+                    f"中規模:{len([p for p in category_selected if p in category_products[category_products['売上規模']=='中規模']['商品名称'].values])}, "
+                    f"小規模:{len([p for p in category_selected if p in category_products[category_products['売上規模']=='小規模']['商品名称'].values])})"
+                )
+
+            # 重複除去
+            selected_products = list(set(selected_products))
+
+            # 最大数を超えた場合は総合スコア上位を選択
+            if len(selected_products) > max_products:
+                all_selected_stats = product_stats[
+                    product_stats["商品名称"].isin(selected_products)
+                ]
+                # 総合スコア再計算
+                all_selected_stats = all_selected_stats.copy()
+                all_selected_stats["レコード数_正規化"] = (
+                    all_selected_stats["レコード数"] / all_selected_stats["レコード数"].max()
+                )
+                all_selected_stats["販売期間_正規化"] = (
+                    all_selected_stats["販売期間_日"] / all_selected_stats["販売期間_日"].max()
+                )
+                all_selected_stats["安定性スコア"] = 1 / (
+                    1
+                    + all_selected_stats["販売数量標準偏差"].fillna(0)
+                    / all_selected_stats["平均販売数量"].replace(0, 1)
+                )
+                all_selected_stats["総合スコア"] = (
+                    0.4 * all_selected_stats["レコード数_正規化"]
+                    + 0.3 * all_selected_stats["販売期間_正規化"]
+                    + 0.3 * all_selected_stats["安定性スコア"]
+                )
+
+                top_products = all_selected_stats.nlargest(max_products, "総合スコア")
+                selected_products = top_products["商品名称"].tolist()
+
+            # 最終結果をログ出力
+            final_category_dist = product_stats[product_stats["商品名称"].isin(selected_products)][
+                "商品カテゴリ"
+            ].value_counts()
+
+            final_size_dist = product_stats[product_stats["商品名称"].isin(selected_products)][
+                "売上規模"
+            ].value_counts()
+
+            self.logger.info(
+                f"層化サンプリング完了: {len(selected_products)}商品選択\n"
+                f"カテゴリ分布: {dict(final_category_dist)}\n"
+                f"売上規模分布: {dict(final_size_dist)}"
+            )
+
+            return selected_products
+
+        except Exception as e:
+            self.logger.error(f"層化サンプリングエラー: {e}")
+            # フォールバック: 売上上位商品を返す
+            fallback_products = (
+                df.groupby("商品名称")["金額"].sum().nlargest(max_products).index.tolist()
+            )
+            self.logger.warning(f"フォールバック処理: 売上上位{len(fallback_products)}商品を選択")
+            return fallback_products
