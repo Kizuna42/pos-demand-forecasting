@@ -25,7 +25,9 @@ jobs:
           
       - name: Install essential dependencies
         run: |
+          pip install --upgrade pip
           pip install pytest black pandas numpy scikit-learn matplotlib seaborn scipy pyyaml requests loguru typer tqdm python-dotenv shap
+          pip install mkdocs isort flake8
           
       - name: Verify basic structure
         run: |
@@ -33,18 +35,25 @@ jobs:
           test -f src/main.py && echo "main.py exists" || echo "main.py missing"
           test -d tests && echo "tests dir exists" || echo "tests dir missing"
           
-      - name: Create required directories
+      - name: Create required directories and files
         run: |
           mkdir -p data/raw data/processed reports logs output models
+          touch data/raw/.gitkeep
+          touch data/processed/.gitkeep
           
-      - name: Add src to Python path
+      - name: Setup environment
         run: |
-          echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src" >> $GITHUB_ENV
+          echo "PYTHONPATH=$(pwd)/src:$PYTHONPATH" >> $GITHUB_ENV
+          
+      - name: Test imports first
+        run: |
+          cd $GITHUB_WORKSPACE
+          python -c "import sys; sys.path.insert(0, 'src'); import demand_forecasting; print('✓ Package import successful')"
           
       - name: Run essential tests
         run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)/src
-          python -m pytest tests/test_data.py tests/test_data_processor.py tests/test_model_builder.py -v
+          cd $GITHUB_WORKSPACE
+          python -m pytest tests/test_data.py tests/test_data_processor.py tests/test_model_builder.py -v --tb=short
           
       - name: Check code formatting
         run: |
