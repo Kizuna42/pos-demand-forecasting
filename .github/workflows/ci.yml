@@ -33,13 +33,18 @@ jobs:
           test -f src/main.py && echo "main.py exists" || echo "main.py missing"
           test -d tests && echo "tests dir exists" || echo "tests dir missing"
           
+      - name: Create required directories
+        run: |
+          mkdir -p data/raw data/processed reports logs output models
+          
       - name: Add src to Python path
         run: |
           echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src" >> $GITHUB_ENV
           
       - name: Basic import test
         run: |
-          PYTHONPATH=$PYTHONPATH:$(pwd)/src python -c "import demand_forecasting; print('Import successful')"
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+          python -c "import sys; sys.path.insert(0, 'src'); import demand_forecasting; print('Import successful')"
           
       - name: Check code formatting
         run: |
@@ -47,4 +52,5 @@ jobs:
           
       - name: Run simple test
         run: |
-          PYTHONPATH=$PYTHONPATH:$(pwd)/src python -m pytest tests/test_data.py -v
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+          python -m pytest tests/test_data.py -v
