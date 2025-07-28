@@ -55,13 +55,21 @@ jobs:
         run: |
           isort --check-only .
           
-      - name: Run complete test suite
+      - name: Run test suite step by step
         run: |
-          python -m pytest tests/ --cov=src --cov-report=xml --tb=short -v
+          echo "Testing basic functionality..."
+          python -m pytest tests/test_data.py -v --tb=short || true
+          echo "Testing data processor..."  
+          python -m pytest tests/test_data_processor.py -v --tb=short || true
+          echo "Testing model builder..."
+          python -m pytest tests/test_model_builder.py -v --tb=short || true
+          echo "Running all tests..."
+          python -m pytest tests/ --tb=short -x
           
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          flags: unittests
-          name: codecov-umbrella
+      # Coverage reporting temporarily disabled for debugging
+      # - name: Upload coverage to Codecov
+      #   uses: codecov/codecov-action@v3
+      #   with:
+      #     file: ./coverage.xml
+      #     flags: unittests
+      #     name: codecov-umbrella
