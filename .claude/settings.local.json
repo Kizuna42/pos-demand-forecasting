@@ -13,7 +13,16 @@
       "Bash(python -m pytest tests/test_integration.py tests/test_quality_evaluator.py tests/test_want_plotter.py tests/test_report_generator.py -v)",
       "Bash(git restore:*)",
       "Bash(python -m pytest tests/test_end_to_end.py::TestEndToEnd::test_full_pipeline_execution -v)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(flake8:*)",
+      "Bash(black:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr checks:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(isort:*)",
+      "Bash(/dev/null)"
     ],
     "deny": []
   }
