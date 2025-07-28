@@ -53,21 +53,24 @@ class WantPlotter:
 
         # フォント設定（Mac環境対応、警告回避）
         import matplotlib.font_manager as fm
+
         available_fonts = [f.name for f in fm.fontManager.ttflist]
-        
+
         # Mac環境で利用可能なフォント優先順位
         preferred_fonts = [
-            "Hiragino Kaku Gothic ProN", 
-            "Hiragino Sans", 
+            "Hiragino Kaku Gothic ProN",
+            "Hiragino Sans",
             "Arial Unicode MS",
             "DejaVu Sans",
             "Liberation Sans",
-            "sans-serif"
+            "sans-serif",
         ]
-        
+
         # 利用可能なフォントのみを設定
-        available_preferred = [font for font in preferred_fonts if font in available_fonts or font == "sans-serif"]
-        
+        available_preferred = [
+            font for font in preferred_fonts if font in available_fonts or font == "sans-serif"
+        ]
+
         if available_preferred:
             plt.rcParams["font.family"] = available_preferred
         else:

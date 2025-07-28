@@ -74,9 +74,11 @@ class DemandForecastingPipeline:
             baseline_features = self.feature_engineer.create_baseline_features(clean_data)
             time_features = self.feature_engineer.add_time_features(baseline_features)
             weather_features = self.feature_engineer.integrate_weather_features(time_features)
-            
+
             # Phase 3: 高度な時系列特徴量追加（ラグ特徴量、移動平均等）
-            final_features = self.feature_engineer.add_advanced_time_series_features(weather_features)
+            final_features = self.feature_engineer.add_advanced_time_series_features(
+                weather_features
+            )
 
             # 3. 分析対象商品の決定
             if target_products is None:
