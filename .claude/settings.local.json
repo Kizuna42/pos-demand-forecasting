@@ -29,7 +29,9 @@
       "Bash(gh run view:*)",
       "Bash(gh pr merge:*)",
       "Bash(git stash:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(git pull:*)",
+      "Bash(pip install:*)"
     ],
     "deny": []
   }

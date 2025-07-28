@@ -51,17 +51,20 @@ class TestModelBuilder:
         return X, y
 
     def test_build_model(self, model_builder, sample_data):
-        """モデル構築のテスト"""
+        """モデル構築のテスト（Phase 3: アンサンブル対応）"""
         X, y = sample_data
 
-        model = model_builder.build_model(X, y)
+        # RandomForestモデル単体のテスト
+        rf_model = model_builder.build_model(X, y, model_type="random_forest")
+        assert isinstance(rf_model, RandomForestRegressor)
+        assert hasattr(rf_model, "feature_importances_")
+        assert len(rf_model.feature_importances_) == X.shape[1]
 
-        # RandomForestRegressorが返されることを確認
-        assert isinstance(model, RandomForestRegressor)
-
-        # モデルが訓練されていることを確認
-        assert hasattr(model, "feature_importances_")
-        assert len(model.feature_importances_) == X.shape[1]
+        # アンサンブルモデルのテスト
+        ensemble_models = model_builder.build_model(X, y, model_type="ensemble")
+        assert isinstance(ensemble_models, dict)
+        assert "random_forest" in ensemble_models
+        assert isinstance(ensemble_models["random_forest"], RandomForestRegressor)
 
     def test_preprocess_features(self, model_builder, sample_data):
         """特徴量前処理のテスト"""
@@ -83,12 +86,12 @@ class TestModelBuilder:
         assert all(X_processed.dtypes.apply(lambda x: np.issubdtype(x, np.number)))
 
     def test_train_with_cv(self, model_builder, sample_data):
-        """交差検証付き訓練のテスト"""
+        """交差検証付き訓練のテスト（Phase 3: アンサンブル対応）"""
         X, y = sample_data
 
-        results = model_builder.train_with_cv(X, y)
-
-        # 必要なキーが結果に含まれていることを確認
+        # RandomForest単体のテスト
+        rf_results = model_builder.train_with_cv(X, y, model_type="random_forest")
+        
         expected_keys = [
             "model",
             "cv_scores",
@@ -99,26 +102,33 @@ class TestModelBuilder:
             "feature_names",
         ]
         for key in expected_keys:
-            assert key in results
+            assert key in rf_results
 
-        # モデルが正しく訓練されていることを確認
-        assert isinstance(results["model"], RandomForestRegressor)
+        assert isinstance(rf_results["model"], RandomForestRegressor)
+        
+        # アンサンブルのテスト
+        ensemble_results = model_builder.train_with_cv(X, y, model_type="ensemble")
+        for key in expected_keys:
+            assert key in ensemble_results
+        
+        assert isinstance(ensemble_results["model"], dict)
+        assert "ensemble_weights" in ensemble_results
 
         # 交差検証結果が妥当であることを確認
-        assert "mean_score" in results["cv_scores"]
-        assert "std_score" in results["cv_scores"]
+        assert "mean_score" in rf_results["cv_scores"]
+        assert "std_score" in rf_results["cv_scores"]
 
         # メトリクスが計算されていることを確認
-        assert "r2_score" in results["test_metrics"]
-        assert "rmse" in results["test_metrics"]
-        assert "mae" in results["test_metrics"]
+        assert "r2_score" in rf_results["test_metrics"]
+        assert "rmse" in rf_results["test_metrics"]
+        assert "mae" in rf_results["test_metrics"]
 
     def test_evaluate_model(self, model_builder, sample_data):
         """モデル評価のテスト"""
         X, y = sample_data
 
-        # モデルを訓練
-        model = model_builder.build_model(X, y)
+        # RandomForestモデルを訓練
+        model = model_builder.build_model(X, y, model_type="random_forest")
 
         # 評価実行
         metrics = model_builder.evaluate_model(model, X, y)
@@ -138,8 +148,8 @@ class TestModelBuilder:
         """特徴量重要度取得のテスト"""
         X, y = sample_data
 
-        # モデルを訓練
-        model = model_builder.build_model(X, y)
+        # RandomForestモデルを訓練
+        model = model_builder.build_model(X, y, model_type="random_forest")
 
         # 特徴量重要度を取得
         importance = model_builder.get_feature_importance(model, X.columns.tolist())
@@ -175,8 +185,8 @@ class TestModelBuilder:
         """モデル保存・読み込みのテスト"""
         X, y = sample_data
 
-        # モデルを訓練
-        model = model_builder.build_model(X, y)
+        # RandomForestモデルを訓練
+        model = model_builder.build_model(X, y, model_type="random_forest")
 
         # 一時ファイルに保存
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -199,8 +209,8 @@ class TestModelBuilder:
         """予測のテスト"""
         X, y = sample_data
 
-        # モデルを訓練
-        model = model_builder.build_model(X, y)
+        # RandomForestモデルを訓練
+        model = model_builder.build_model(X, y, model_type="random_forest")
 
         # 予測実行
         predictions = model_builder.predict(model, X)
@@ -214,8 +224,8 @@ class TestModelBuilder:
         """モデルサマリー生成のテスト"""
         X, y = sample_data
 
-        # 交差検証付き訓練を実行
-        results = model_builder.train_with_cv(X, y)
+        # RandomForest交差検証付き訓練を実行
+        results = model_builder.train_with_cv(X, y, model_type="random_forest")
 
         # サマリー生成
         summary = model_builder.get_model_summary(results)
@@ -236,7 +246,7 @@ class TestModelBuilder:
             assert key in summary
 
         # 値が妥当であることを確認
-        assert summary["model_type"] == "RandomForestRegressor"
+        assert summary["model_type"] == "random_forest"
         assert summary["n_features"] == len(X.columns)
         assert len(summary["top_features"]) <= 5
 

@@ -73,7 +73,10 @@ class DemandForecastingPipeline:
             self.logger.info("ステップ2: 特徴量エンジニアリング")
             baseline_features = self.feature_engineer.create_baseline_features(clean_data)
             time_features = self.feature_engineer.add_time_features(baseline_features)
-            final_features = self.feature_engineer.integrate_weather_features(time_features)
+            weather_features = self.feature_engineer.integrate_weather_features(time_features)
+            
+            # Phase 3: 高度な時系列特徴量追加（ラグ特徴量、移動平均等）
+            final_features = self.feature_engineer.add_advanced_time_series_features(weather_features)
 
             # 3. 分析対象商品の決定
             if target_products is None:
@@ -170,8 +173,8 @@ class DemandForecastingPipeline:
             X = product_data[feature_columns]
             y = product_data[target_column]
 
-            # 機械学習モデル構築
-            model_results = self.model_builder.train_with_cv(X, y)
+            # Phase 3: アンサンブル機械学習モデル構築
+            model_results = self.model_builder.train_with_cv(X, y, model_type="ensemble")
 
             # 品質レベル評価
             quality_level = self.quality_evaluator.evaluate_quality_level(
