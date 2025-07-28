@@ -55,22 +55,15 @@ jobs:
         run: |
           isort --check-only .
           
-      - name: Test minimal functionality
+      - name: Validate basic test
         run: |
           echo "=== Testing basic data ==="
           python -m pytest tests/test_data.py -v
           
-      - name: Test core functionality  
+      - name: Run comprehensive test suite
         run: |
-          echo "=== Testing data processor ==="  
-          python -m pytest tests/test_data_processor.py -v
-          echo "=== Testing model builder ==="
-          python -m pytest tests/test_model_builder.py -v
-          
-      - name: Test all remaining
-        run: |
-          echo "=== Running all tests ==="
-          python -m pytest tests/ -v --tb=line
+          echo "=== Running full test suite (79 tests) ==="
+          python -m pytest tests/ -v --maxfail=5 --tb=short
           
       # Coverage reporting temporarily disabled for debugging
       # - name: Upload coverage to Codecov
