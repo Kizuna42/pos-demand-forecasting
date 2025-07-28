@@ -145,7 +145,14 @@ logging:
         try:
             # データファイルを適切な場所にコピー
             import shutil
-            shutil.copy(sample_data_file, "test_data.csv")
+            # 安全なファイルコピー
+            try:
+                if os.path.exists("test_data.csv") and os.path.samefile(sample_data_file, "test_data.csv"):
+                    pass  # 同じファイルの場合はスキップ
+                else:
+                    shutil.copy(sample_data_file, "test_data.csv")
+            except (OSError, shutil.SameFileError):
+                pass  # ファイルが既に存在する場合や同じファイルの場合はスキップ
             
             # パイプライン実行
             pipeline = DemandForecastingPipeline(sample_config_file)
@@ -213,7 +220,14 @@ logging:
         
         try:
             import shutil
-            shutil.copy(sample_data_file, "test_data.csv")
+            # 安全なファイルコピー
+            try:
+                if os.path.exists("test_data.csv") and os.path.samefile(sample_data_file, "test_data.csv"):
+                    pass  # 同じファイルの場合はスキップ
+                else:
+                    shutil.copy(sample_data_file, "test_data.csv")
+            except (OSError, shutil.SameFileError):
+                pass  # ファイルが既に存在する場合や同じファイルの場合はスキップ
             
             # 特定商品を指定してパイプライン実行
             pipeline = DemandForecastingPipeline(sample_config_file)
@@ -298,7 +312,14 @@ logging:
         
         try:
             import shutil
-            shutil.copy(sample_data_file, "test_data.csv")
+            # 安全なファイルコピー
+            try:
+                if os.path.exists("test_data.csv") and os.path.samefile(sample_data_file, "test_data.csv"):
+                    pass  # 同じファイルの場合はスキップ
+                else:
+                    shutil.copy(sample_data_file, "test_data.csv")
+            except (OSError, shutil.SameFileError):
+                pass  # ファイルが既に存在する場合や同じファイルの場合はスキップ
             
             pipeline = DemandForecastingPipeline(sample_config_file)
             results = pipeline.run_full_analysis(max_products=3)
