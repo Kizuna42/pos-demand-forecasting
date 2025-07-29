@@ -11,9 +11,18 @@ feature_engineering:
     - "週末フラグ"
 
   time_features:
-    enable_time_assignment: false
+    enable_time_assignment: true
     enable_congestion: true
     time_distribution_type: "bimodal"
+    probability_model:
+      weekday_pattern:
+        peak_time: 18 # 18時にピーク
+        peak_intensity: 0.8 # 高い集中度
+        spread: 2.0 # 鋭い山
+      holiday_pattern:
+        peak_time: 12 # 12時にピーク
+        peak_intensity: 0.4 # 低い集中度
+        spread: 4.0 # 緩やかな丘
 
   weather_features:
     enable_weather_api: true
