@@ -45,7 +45,7 @@ class QualityEvaluator:
             if r2_score >= premium_threshold:
                 return "Standard"  # Premium → Standard
             elif r2_score >= standard_threshold:
-                return "Basic"     # Standard → Basic
+                return "Basic"  # Standard → Basic
             else:
                 return "Rejected"  # Basic → Rejected
 

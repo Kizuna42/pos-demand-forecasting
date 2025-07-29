@@ -476,7 +476,9 @@ class FeatureEngineer:
             # 最大特徴量数制限（相関の高い順に選択）
             if len(selected_features) > max_features:
                 # ターゲットとの相関が高い順にmax_features個選択
-                feature_correlations = target_correlation[selected_features].sort_values(ascending=False)
+                feature_correlations = target_correlation[selected_features].sort_values(
+                    ascending=False
+                )
                 selected_features = feature_correlations.head(max_features).index.tolist()
                 self.logger.info(f"最大数制限適用: {max_features}個に削減")
 
@@ -494,7 +496,7 @@ class FeatureEngineer:
         """高相関の特徴量ペアを除去（強化版）"""
         if len(features) <= 1:
             return features
-            
+
         correlation_matrix = df[features].corr().abs()
 
         # 上三角行列を取得
@@ -505,7 +507,7 @@ class FeatureEngineer:
         # 高相関ペアを特定し、より情報量の少ない特徴量を除去
         to_drop = set()
         for i in range(len(features)):
-            for j in range(i+1, len(features)):
+            for j in range(i + 1, len(features)):
                 if upper_triangle.iloc[i, j] > threshold:
                     # より分散の小さい特徴量を除去（情報量が少ない）
                     var_i = df[features[i]].var()

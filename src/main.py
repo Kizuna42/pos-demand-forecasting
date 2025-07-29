@@ -169,12 +169,14 @@ class DemandForecastingPipeline:
             )
 
             if len(selected_features) < 3:
-                self.logger.warning(f"{product}: 特徴量選択後の数が不足 ({len(selected_features)}個)")
+                self.logger.warning(
+                    f"{product}: 特徴量選択後の数が不足 ({len(selected_features)}個)"
+                )
                 return None
 
             X = product_data[selected_features]
             y = product_data[target_column]
-            
+
             self.logger.info(f"{product}: 選択特徴量数={len(selected_features)}")
 
             # Phase 3: アンサンブル機械学習モデル構築

@@ -120,13 +120,13 @@ class ModelBuilder:
             # 時系列Hold-out分割（最新3ヶ月をテストセットに固定）
             # 時系列順序を維持した分割
             total_len = len(X_processed)
-            test_size = int(total_len * 0.2)    # 最新20%をテストデータ
-            val_size = int(total_len * 0.15)    # その前15%を検証データ
-            
+            test_size = int(total_len * 0.2)  # 最新20%をテストデータ
+            val_size = int(total_len * 0.15)  # その前15%を検証データ
+
             # 最新データから逆算して分割点を決定
             test_start = total_len - test_size
             val_start = test_start - val_size
-            
+
             # 時系列順序を保持した分割
             X_train = X_processed.iloc[:val_start].copy()
             y_train = y.iloc[:val_start].copy()
@@ -134,10 +134,9 @@ class ModelBuilder:
             y_val = y.iloc[val_start:test_start].copy()
             X_test = X_processed.iloc[test_start:].copy()
             y_test = y.iloc[test_start:].copy()
-            
+
             self.logger.info(
                 f"時系列分割: 訓練={len(X_train)}, 検証={len(X_val)}, テスト={len(X_test)}"
-              
             )
             X_train, X_val, y_train, y_val = train_test_split(
                 X_temp, y_temp, test_size=0.2, random_state=42
