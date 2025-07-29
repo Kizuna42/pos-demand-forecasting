@@ -163,17 +163,19 @@ class DemandForecastingPipeline:
                 self.logger.warning(f"{product}: ターゲット列'{target_column}'が見つかりません")
                 return None
 
-            # 特徴量とターゲットを分離
-            feature_columns = product_data.select_dtypes(include=["number"]).columns.tolist()
-            if target_column in feature_columns:
-                feature_columns.remove(target_column)
+            # 強化された特徴量選択を実行
+            selected_features = self.feature_engineer.select_features(
+                product_data, target_column, max_features=25
+            )
 
-            if len(feature_columns) < 3:
-                self.logger.warning(f"{product}: 特徴量不足")
+            if len(selected_features) < 3:
+                self.logger.warning(f"{product}: 特徴量選択後の数が不足 ({len(selected_features)}個)")
                 return None
 
-            X = product_data[feature_columns]
+            X = product_data[selected_features]
             y = product_data[target_column]
+            
+            self.logger.info(f"{product}: 選択特徴量数={len(selected_features)}")
 
             # Phase 3: アンサンブル機械学習モデル構築
             model_results = self.model_builder.train_with_cv(X, y, model_type="ensemble")

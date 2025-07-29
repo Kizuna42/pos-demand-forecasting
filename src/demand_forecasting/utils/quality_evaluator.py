@@ -21,7 +21,7 @@ class QualityEvaluator:
 
     def evaluate_quality_level(self, r2_score: float) -> str:
         """
-        R²スコアに基づく品質レベル評価
+        R²スコアに基づく品質レベル評価（過度な精度チェック付き）
 
         Args:
             r2_score: R²スコア
@@ -33,7 +33,23 @@ class QualityEvaluator:
         premium_threshold = thresholds.get("premium", 0.7)
         standard_threshold = thresholds.get("standard", 0.5)
         basic_threshold = thresholds.get("basic", 0.3)
+        max_r2_score = self.quality_config.get("max_r2_score", 0.90)
 
+        # 過度に高いR²スコアの警告・降格
+        if r2_score > max_r2_score:
+            self.logger.warning(
+                f"過度に高いR²スコア検出: {r2_score:.4f} > {max_r2_score} "
+                f"(過学習または実装問題の可能性)"
+            )
+            # 品質レベルを1段階降格
+            if r2_score >= premium_threshold:
+                return "Standard"  # Premium → Standard
+            elif r2_score >= standard_threshold:
+                return "Basic"     # Standard → Basic
+            else:
+                return "Rejected"  # Basic → Rejected
+
+        # 通常の品質評価
         if r2_score >= premium_threshold:
             return "Premium"
         elif r2_score >= standard_threshold:

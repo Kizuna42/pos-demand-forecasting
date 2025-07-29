@@ -23,21 +23,21 @@ feature_engineering:
 model:
   algorithm: "ensemble"  # RandomForest, XGBoost, ensemble
   
-  # RandomForest設定（Phase 3: L1/L2正則化相当のパラメータ調整）
-  n_estimators: 150
-  max_depth: 8
-  min_samples_split: 5
-  min_samples_leaf: 2
-  max_features: "sqrt"
+  # RandomForest設定（過学習抑制強化: 複雑度削減）
+  n_estimators: 100      # 150 → 100 に削減
+  max_depth: 5           # 8 → 5 に制限（重要: 過学習抑制）
+  min_samples_split: 10  # 5 → 10 に増加（汎化性向上）
+  min_samples_leaf: 5    # 2 → 5 に増加（汎化性向上）
+  max_features: "sqrt"   # 維持
   
-  # XGBoost設定（Phase 3: L1/L2正則化付き）
-  xgb_n_estimators: 100
-  xgb_max_depth: 6
-  xgb_learning_rate: 0.1
-  xgb_reg_alpha: 0.1    # L1正則化
-  xgb_reg_lambda: 1.0   # L2正則化
-  xgb_subsample: 0.8
-  xgb_colsample_bytree: 0.8
+  # XGBoost設定（強力な正則化パラメータ）
+  xgb_n_estimators: 80   # 100 → 80 に削減
+  xgb_max_depth: 4       # 6 → 4 に制限（重要: 過学習抑制）
+  xgb_learning_rate: 0.05 # 0.1 → 0.05（より慎重な学習）
+  xgb_reg_alpha: 1.0     # 0.1 → 1.0 L1正則化強化
+  xgb_reg_lambda: 3.0    # 1.0 → 3.0 L2正則化強化
+  xgb_subsample: 0.7     # 0.8 → 0.7（より厳しいサンプリング）
+  xgb_colsample_bytree: 0.7 # 0.8 → 0.7（特徴量サンプリング強化）
   
   random_state: 42
   cv_folds: 5
@@ -48,7 +48,11 @@ quality:
     standard: 0.5
     basic: 0.3
 
+  # 過学習抑制とリアリズムのための制限
   overfitting_threshold: 0.01
+  max_r2_score: 0.90        # R²スコア上限（過度な精度の防止）
+  min_cv_stability: 0.8     # CV安定性の最低基準
+  max_train_test_gap: 0.05  # 訓練/テスト性能差の上限
 
 visualization:
   output_dir: "output/visualizations"
