@@ -26,7 +26,7 @@ class FeatureEngineer:
         self.config = config
         self.logger = Logger(config.get_logging_config()).get_logger("feature_engineer")
         self.feature_config = config.get_feature_config()
-        
+
         # 気象データキャッシュの初期化
         self._init_weather_cache()
 
@@ -196,33 +196,33 @@ class FeatureEngineer:
     def _assign_virtual_time(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         確率モデルに基づく時刻付与機能
-        
+
         要件A: トランザクションへの時刻付与機能
         - 平日・休日別の確率分布関数を実装
         - 確率モデルに基づくランダム時刻生成
         - トランザクションデータへの時刻フィールド追加
         """
         df_time = df.copy()
-        
+
         self.logger.info("確率モデルに基づく時刻付与を開始")
-        
+
         # 確率モデル設定を取得
         prob_config = self.feature_config.get("time_features", {}).get("probability_model", {})
-        weekday_config = prob_config.get("weekday_pattern", {
-            "peak_time": 18, "peak_intensity": 0.8, "spread": 2.0
-        })
-        holiday_config = prob_config.get("holiday_pattern", {
-            "peak_time": 12, "peak_intensity": 0.4, "spread": 4.0
-        })
-        
+        weekday_config = prob_config.get(
+            "weekday_pattern", {"peak_time": 18, "peak_intensity": 0.8, "spread": 2.0}
+        )
+        holiday_config = prob_config.get(
+            "holiday_pattern", {"peak_time": 12, "peak_intensity": 0.4, "spread": 4.0}
+        )
+
         # 時刻と混雑度（確率値）を計算
         times = []
         congestion_values = []
-        
+
         for idx, row in df_time.iterrows():
             is_weekend = row.get("週末フラグ", 0) == 1
             is_holiday = row.get("祝日フラグ", 0) == 1
-            
+
             # 平日・休日パターンの選択
             if is_weekend or is_holiday:
                 # 休日パターン: 早い時間帯に低く緩やかな丘
@@ -232,56 +232,58 @@ class FeatureEngineer:
                 # 平日パターン: 遅い時間帯に高く鋭い山
                 config = weekday_config
                 pattern_type = "weekday"
-            
+
             # 確率分布関数による時刻生成
             assigned_time, probability = self._generate_time_from_probability_model(config)
-            
+
             times.append(assigned_time)
             congestion_values.append(probability)
-        
+
         # 結果をDataFrameに追加
         df_time["時刻"] = times
         df_time["混雑度"] = congestion_values
-        
+
         # 時間帯分類を追加
         df_time["時間帯"] = df_time["時刻"].apply(self._classify_time_period)
-        
-        self.logger.info(f"時刻付与完了: 平均時刻={np.mean(times):.1f}, 平均混雑度={np.mean(congestion_values):.3f}")
-        
+
+        self.logger.info(
+            f"時刻付与完了: 平均時刻={np.mean(times):.1f}, 平均混雑度={np.mean(congestion_values):.3f}"
+        )
+
         return df_time
-    
+
     def _generate_time_from_probability_model(self, config: Dict[str, float]) -> tuple:
         """
         確率モデルから時刻と確率値を生成
-        
+
         Args:
             config: 確率モデル設定（peak_time, peak_intensity, spread）
-            
+
         Returns:
             tuple: (時刻, 確率値)
         """
         peak_time = config["peak_time"]
         peak_intensity = config["peak_intensity"]
         spread = config["spread"]
-        
+
         # 営業時間を9-21時と仮定
         time_range = np.arange(9, 22, 0.5)  # 30分刻み
-        
+
         # ガウス分布ベースの確率密度関数
-        probabilities = peak_intensity * np.exp(-((time_range - peak_time) ** 2) / (2 * spread ** 2))
-        
+        probabilities = peak_intensity * np.exp(-((time_range - peak_time) ** 2) / (2 * spread**2))
+
         # 確率を正規化
         probabilities = probabilities / np.sum(probabilities)
-        
+
         # 確率に基づいて時刻を選択
         selected_time = np.random.choice(time_range, p=probabilities)
-        
+
         # 選択された時刻の確率値（混雑度として使用）
         time_idx = np.where(time_range == selected_time)[0][0]
         probability_value = probabilities[time_idx]
-        
+
         return float(selected_time), float(probability_value)
-    
+
     def _classify_time_period(self, time_hour: float) -> str:
         """時刻を時間帯に分類"""
         if time_hour < 11:
@@ -294,13 +296,15 @@ class FeatureEngineer:
     def _calculate_congestion(self, df: pd.DataFrame) -> pd.Series:
         """
         混雑度を計算（レガシー関数 - 新しい実装では_assign_virtual_time内で処理）
-        
+
         要件B: 混雑度説明変数の実装
         - 確率モデルの縦軸値（確率値）を混雑度として活用
         - 各トランザクションへの混雑度フィールド追加
         """
-        self.logger.warning("レガシー混雑度計算関数が呼び出されました。新しい確率モデルベースの実装を使用してください。")
-        
+        self.logger.warning(
+            "レガシー混雑度計算関数が呼び出されました。新しい確率モデルベースの実装を使用してください。"
+        )
+
         congestion = pd.Series(index=df.index, dtype=float)
 
         for idx, row in df.iterrows():
@@ -367,16 +371,17 @@ class FeatureEngineer:
         """気象データキャッシュの初期化"""
         try:
             from pathlib import Path
-            
+
             # キャッシュディレクトリの作成
             cache_dir = Path("data/cache")
             cache_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # SQLiteキャッシュデータベースの初期化
             self.cache_db_path = cache_dir / "weather_cache.db"
-            
+
             with sqlite3.connect(str(self.cache_db_path)) as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS weather_cache (
                         cache_key TEXT PRIMARY KEY,
                         date_range TEXT,
@@ -385,11 +390,12 @@ class FeatureEngineer:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         expires_at TIMESTAMP
                     )
-                """)
+                """
+                )
                 conn.commit()
-                
+
             self.logger.info(f"気象データキャッシュ初期化完了: {self.cache_db_path}")
-            
+
         except Exception as e:
             self.logger.warning(f"気象データキャッシュ初期化失敗: {e}")
             self.cache_db_path = None
@@ -405,43 +411,49 @@ class FeatureEngineer:
         """キャッシュから気象データを取得"""
         if not self.cache_db_path:
             return None
-            
+
         try:
             with sqlite3.connect(str(self.cache_db_path)) as conn:
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     SELECT data_json FROM weather_cache 
                     WHERE cache_key = ? AND expires_at > CURRENT_TIMESTAMP
-                """, (cache_key,))
-                
+                """,
+                    (cache_key,),
+                )
+
                 result = cursor.fetchone()
                 if result:
                     self.logger.info("キャッシュから気象データを取得")
                     return json.loads(result[0])
-                    
+
         except Exception as e:
             self.logger.warning(f"キャッシュ取得エラー: {e}")
-            
+
         return None
 
     def _cache_weather_data(self, cache_key: str, api_name: str, date_range: str, data: dict):
         """気象データをキャッシュに保存"""
         if not self.cache_db_path:
             return
-            
+
         try:
             # 1日間キャッシュ（履歴データなので長期間保持可能）
             expires_at = datetime.now() + timedelta(days=1)
-            
+
             with sqlite3.connect(str(self.cache_db_path)) as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO weather_cache 
                     (cache_key, date_range, api_name, data_json, expires_at)
                     VALUES (?, ?, ?, ?, ?)
-                """, (cache_key, date_range, api_name, json.dumps(data), expires_at))
+                """,
+                    (cache_key, date_range, api_name, json.dumps(data), expires_at),
+                )
                 conn.commit()
-                
+
             self.logger.info("気象データをキャッシュに保存")
-            
+
         except Exception as e:
             self.logger.warning(f"キャッシュ保存エラー: {e}")
 
@@ -449,16 +461,18 @@ class FeatureEngineer:
         """期限切れキャッシュの削除"""
         if not self.cache_db_path:
             return
-            
+
         try:
             with sqlite3.connect(str(self.cache_db_path)) as conn:
-                cursor = conn.execute("DELETE FROM weather_cache WHERE expires_at <= CURRENT_TIMESTAMP")
+                cursor = conn.execute(
+                    "DELETE FROM weather_cache WHERE expires_at <= CURRENT_TIMESTAMP"
+                )
                 deleted_count = cursor.rowcount
                 conn.commit()
-                
+
             if deleted_count > 0:
                 self.logger.info(f"期限切れキャッシュを削除: {deleted_count}件")
-                
+
         except Exception as e:
             self.logger.warning(f"キャッシュクリーンアップエラー: {e}")
 
@@ -507,7 +521,7 @@ class FeatureEngineer:
             try:
                 # キャッシュキーの生成
                 cache_key = self._get_cache_key(api_info["name"], api_info["params"])
-                
+
                 # キャッシュから取得を試行
                 cached_data = self._get_cached_weather_data(cache_key)
                 if cached_data:
@@ -517,17 +531,17 @@ class FeatureEngineer:
                     self.logger.info(
                         f"気象データ取得中 ({api_info['name']}): {min_date} ~ {max_date}"
                     )
-                    
+
                     response = requests.get(
-                        api_info["endpoint"], 
-                        params=api_info["params"], 
+                        api_info["endpoint"],
+                        params=api_info["params"],
                         timeout=30,
-                        headers={"User-Agent": "DemandForecasting/1.0"}
+                        headers={"User-Agent": "DemandForecasting/1.0"},
                     )
                     response.raise_for_status()
 
                     weather_data = response.json()
-                    
+
                     # キャッシュに保存
                     date_range = f"{min_date} ~ {max_date}"
                     self._cache_weather_data(cache_key, api_info["name"], date_range, weather_data)
@@ -634,7 +648,7 @@ class FeatureEngineer:
 
         # 基本的な気象特徴量
         self.logger.info("基本気象特徴量を生成中...")
-        
+
         # 気温区分（より詳細）
         df_weather_features["気温区分"] = pd.cut(
             df_weather_features["平均気温"],
@@ -654,7 +668,7 @@ class FeatureEngineer:
         # 時系列気象特徴量の生成
         if len(df_weather_features) > 1:
             df_weather_features = df_weather_features.sort_values("年月日")
-            
+
             # 気温の移動平均（3日、7日、14日）
             for window in [3, 7, 14]:
                 df_weather_features[f"気温_移動平均_{window}日"] = (
@@ -679,12 +693,11 @@ class FeatureEngineer:
 
         # 複合指標の計算
         self.logger.info("複合気象指標を生成中...")
-        
+
         # 体感温度（湿度考慮、簡易版）
         if "湿度" in df_weather_features.columns:
             df_weather_features["体感温度"] = (
-                df_weather_features["平均気温"] 
-                + (df_weather_features["湿度"] - 50) * 0.1
+                df_weather_features["平均気温"] + (df_weather_features["湿度"] - 50) * 0.1
             )
         else:
             df_weather_features["体感温度"] = df_weather_features["平均気温"]
@@ -692,18 +705,21 @@ class FeatureEngineer:
         # 不快指数（温度と湿度から）
         if "湿度" in df_weather_features.columns:
             df_weather_features["不快指数"] = (
-                0.81 * df_weather_features["平均気温"] 
-                + 0.01 * df_weather_features["湿度"] 
-                * (0.99 * df_weather_features["平均気温"] - 14.3) + 46.3
+                0.81 * df_weather_features["平均気温"]
+                + 0.01
+                * df_weather_features["湿度"]
+                * (0.99 * df_weather_features["平均気温"] - 14.3)
+                + 46.3
             )
-            df_weather_features["不快指数_高フラグ"] = (df_weather_features["不快指数"] > 75).astype(int)
+            df_weather_features["不快指数_高フラグ"] = (
+                df_weather_features["不快指数"] > 75
+            ).astype(int)
 
         # 風冷却効果（風速考慮）
         if "風速" in df_weather_features.columns:
             # 風冷指数（Wind Chill Index）の簡易版
             df_weather_features["風冷指数"] = (
-                df_weather_features["平均気温"] 
-                - df_weather_features["風速"] * 0.5
+                df_weather_features["平均気温"] - df_weather_features["風速"] * 0.5
             )
 
         # 季節調整済み気温偏差
@@ -716,21 +732,27 @@ class FeatureEngineer:
 
         # 商品カテゴリ別影響フラグ
         self.logger.info("商品カテゴリ別気象影響フラグを生成中...")
-        
+
         # 冷たい商品需要（高温時）
-        df_weather_features["冷商品需要_高フラグ"] = (df_weather_features["平均気温"] > 25).astype(int)
+        df_weather_features["冷商品需要_高フラグ"] = (df_weather_features["平均気温"] > 25).astype(
+            int
+        )
         df_weather_features["冷商品需要_中フラグ"] = (
             (df_weather_features["平均気温"] > 20) & (df_weather_features["平均気温"] <= 25)
         ).astype(int)
 
         # 温かい商品需要（低温時）
-        df_weather_features["温商品需要_高フラグ"] = (df_weather_features["平均気温"] < 10).astype(int)
+        df_weather_features["温商品需要_高フラグ"] = (df_weather_features["平均気温"] < 10).astype(
+            int
+        )
         df_weather_features["温商品需要_中フラグ"] = (
             (df_weather_features["平均気温"] >= 10) & (df_weather_features["平均気温"] < 20)
         ).astype(int)
 
         # 雨の日商品需要
-        df_weather_features["雨日商品需要フラグ"] = (df_weather_features["降水量"] > 0.5).astype(int)
+        df_weather_features["雨日商品需要フラグ"] = (df_weather_features["降水量"] > 0.5).astype(
+            int
+        )
 
         # 気象ストレス指標（極端な気象条件）
         df_weather_features["気象ストレス指標"] = (
@@ -740,7 +762,9 @@ class FeatureEngineer:
             + df_weather_features["急激な気温変化フラグ"]  # 気温変化
         )
 
-        self.logger.info(f"高度気象特徴量生成完了: {len([c for c in df_weather_features.columns if '気温' in c or '降水' in c or '湿度' in c or '風' in c])}個の気象関連特徴量")
+        self.logger.info(
+            f"高度気象特徴量生成完了: {len([c for c in df_weather_features.columns if '気温' in c or '降水' in c or '湿度' in c or '風' in c])}個の気象関連特徴量"
+        )
 
         return df_weather_features
 
@@ -812,16 +836,19 @@ class FeatureEngineer:
             raise FeatureEngineeringError(f"特徴量選択エラー: {e}")
 
     def _remove_highly_correlated_features_with_weather_protection(
-        self, df: pd.DataFrame, features: List[str], threshold: float = 0.75, 
-        weather_features: List[str] = None
+        self,
+        df: pd.DataFrame,
+        features: List[str],
+        threshold: float = 0.75,
+        weather_features: List[str] = None,
     ) -> List[str]:
         """高相関特徴量除去（気象特徴量保護版）"""
         if len(features) <= 1:
             return features
-            
+
         if weather_features is None:
             weather_features = []
-            
+
         correlation_matrix = df[features].corr().abs()
 
         # 上三角行列を取得
@@ -832,10 +859,10 @@ class FeatureEngineer:
         # 高相関ペアを特定し、気象特徴量を保護しながら除去
         to_drop = set()
         for i in range(len(features)):
-            for j in range(i+1, len(features)):
+            for j in range(i + 1, len(features)):
                 if upper_triangle.iloc[i, j] > threshold:
                     feature_i, feature_j = features[i], features[j]
-                    
+
                     # 気象特徴量を優先保持
                     if feature_i in weather_features and feature_j not in weather_features:
                         to_drop.add(feature_j)
@@ -855,55 +882,56 @@ class FeatureEngineer:
 
         if to_drop:
             protected_weather = [f for f in weather_features if f in features and f not in to_drop]
-            self.logger.info(f"高相関除去: {len(to_drop)}個除去, 気象特徴量{len(protected_weather)}個保護")
+            self.logger.info(
+                f"高相関除去: {len(to_drop)}個除去, 気象特徴量{len(protected_weather)}個保護"
+            )
 
         return selected_features
 
     def _prioritize_weather_features_in_selection(
-        self, features: List[str], weather_features: List[str], 
-        target_correlation: pd.Series, max_features: int
+        self,
+        features: List[str],
+        weather_features: List[str],
+        target_correlation: pd.Series,
+        max_features: int,
     ) -> List[str]:
         """気象特徴量を優先した特徴量選択"""
         weather_in_features = [f for f in features if f in weather_features]
         non_weather_in_features = [f for f in features if f not in weather_features]
-        
+
         # 気象特徴量を相関順にソート
         weather_sorted = sorted(
-            weather_in_features, 
-            key=lambda x: target_correlation.get(x, 0), 
-            reverse=True
+            weather_in_features, key=lambda x: target_correlation.get(x, 0), reverse=True
         )
-        
+
         # 非気象特徴量を相関順にソート
         non_weather_sorted = sorted(
-            non_weather_in_features, 
-            key=lambda x: target_correlation.get(x, 0), 
-            reverse=True
+            non_weather_in_features, key=lambda x: target_correlation.get(x, 0), reverse=True
         )
-        
+
         # 気象特徴量を最低30%は確保（ただし利用可能数が上限）
         min_weather_features = min(len(weather_sorted), max(1, int(max_features * 0.3)))
-        
+
         selected = []
-        
+
         # 気象特徴量から選択
         selected.extend(weather_sorted[:min_weather_features])
-        
+
         # 残り枠を非気象特徴量で埋める
         remaining_slots = max_features - len(selected)
         selected.extend(non_weather_sorted[:remaining_slots])
-        
+
         # まだ枠があれば残りの気象特徴量を追加
         if len(selected) < max_features:
             remaining_weather = weather_sorted[min_weather_features:]
             remaining_slots = max_features - len(selected)
             selected.extend(remaining_weather[:remaining_slots])
-        
+
         self.logger.info(
             f"優先選択結果: 気象{len([f for f in selected if f in weather_features])}個, "
             f"その他{len([f for f in selected if f not in weather_features])}個"
         )
-        
+
         return selected
 
     def _remove_highly_correlated_features(
