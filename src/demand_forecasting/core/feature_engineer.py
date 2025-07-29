@@ -426,18 +426,19 @@ class FeatureEngineer:
 
         return df_weather_features
 
-    def select_features(self, df: pd.DataFrame, target: str) -> List[str]:
+    def select_features(self, df: pd.DataFrame, target: str, max_features: int = 25) -> List[str]:
         """
-        特徴量選択を実行
+        特徴量選択を実行（過学習抑制強化版）
 
         Args:
             df: 入力DataFrame
             target: ターゲット列名
+            max_features: 最大特徴量数（デフォルト25個）
 
         Returns:
             選択された特徴量リスト
         """
-        self.logger.info("特徴量選択を開始")
+        self.logger.info(f"特徴量選択を開始 (最大{max_features}個)")
 
         try:
             # 数値特徴量のみを対象
@@ -447,12 +448,14 @@ class FeatureEngineer:
             if target in numeric_features:
                 numeric_features.remove(target)
 
-            # 相関分析による特徴量選択
+            self.logger.info(f"初期特徴量数: {len(numeric_features)}")
+
+            # 相関分析による特徴量選択（閾値を厳しく）
             correlation_matrix = df[numeric_features + [target]].corr()
             target_correlation = abs(correlation_matrix[target]).sort_values(ascending=False)
 
             # 相関が閾値以上の特徴量を選択
-            correlation_threshold = 0.1
+            correlation_threshold = 0.15  # 0.1 → 0.15 より厳しく
             selected_features = target_correlation[
                 target_correlation > correlation_threshold
             ].index.tolist()
@@ -461,12 +464,23 @@ class FeatureEngineer:
             if target in selected_features:
                 selected_features.remove(target)
 
-            # 高相関の特徴量ペアを除去
+            self.logger.info(f"相関選択後: {len(selected_features)}個")
+
+            # 高相関の特徴量ペアを除去（閾値をより厳しく）
             selected_features = self._remove_highly_correlated_features(
-                df, selected_features, threshold=0.8
+                df, selected_features, threshold=0.75  # 0.8 → 0.75
             )
 
-            self.logger.info(f"選択された特徴量数: {len(selected_features)}")
+            self.logger.info(f"高相関除去後: {len(selected_features)}個")
+
+            # 最大特徴量数制限（相関の高い順に選択）
+            if len(selected_features) > max_features:
+                # ターゲットとの相関が高い順にmax_features個選択
+                feature_correlations = target_correlation[selected_features].sort_values(ascending=False)
+                selected_features = feature_correlations.head(max_features).index.tolist()
+                self.logger.info(f"最大数制限適用: {max_features}個に削減")
+
+            self.logger.info(f"最終選択特徴量数: {len(selected_features)}")
             self.logger.debug(f"選択された特徴量: {selected_features}")
 
             return selected_features
@@ -475,9 +489,12 @@ class FeatureEngineer:
             raise FeatureEngineeringError(f"特徴量選択エラー: {e}")
 
     def _remove_highly_correlated_features(
-        self, df: pd.DataFrame, features: List[str], threshold: float = 0.8
+        self, df: pd.DataFrame, features: List[str], threshold: float = 0.75
     ) -> List[str]:
-        """高相関の特徴量ペアを除去"""
+        """高相関の特徴量ペアを除去（強化版）"""
+        if len(features) <= 1:
+            return features
+            
         correlation_matrix = df[features].corr().abs()
 
         # 上三角行列を取得
@@ -485,17 +502,25 @@ class FeatureEngineer:
             np.triu(np.ones(correlation_matrix.shape), k=1).astype(bool)
         )
 
-        # 高相関の特徴量を特定
-        to_drop = []
-        for column in upper_triangle.columns:
-            if any(upper_triangle[column] > threshold):
-                to_drop.append(column)
+        # 高相関ペアを特定し、より情報量の少ない特徴量を除去
+        to_drop = set()
+        for i in range(len(features)):
+            for j in range(i+1, len(features)):
+                if upper_triangle.iloc[i, j] > threshold:
+                    # より分散の小さい特徴量を除去（情報量が少ない）
+                    var_i = df[features[i]].var()
+                    var_j = df[features[j]].var()
+                    if var_i < var_j:
+                        to_drop.add(features[i])
+                    else:
+                        to_drop.add(features[j])
 
         # 高相関特徴量を除去
         selected_features = [f for f in features if f not in to_drop]
 
         if to_drop:
-            self.logger.info(f"高相関により除去された特徴量: {to_drop}")
+            self.logger.info(f"高相関により除去された特徴量 (閾値{threshold}): {list(to_drop)}")
+            self.logger.info(f"残存特徴量数: {len(selected_features)}")
 
         return selected_features
 

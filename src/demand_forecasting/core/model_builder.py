@@ -117,12 +117,26 @@ class ModelBuilder:
             # データの前処理
             X_processed = self._preprocess_features(X)
 
-            # データを訓練・テスト・検証に分割
-            X_temp, X_test, y_temp, y_test = train_test_split(
-                X_processed, y, test_size=0.2, random_state=42
-            )
-            X_train, X_val, y_train, y_val = train_test_split(
-                X_temp, y_temp, test_size=0.2, random_state=42
+            # 時系列Hold-out分割（最新3ヶ月をテストセットに固定）
+            # 時系列順序を維持した分割
+            total_len = len(X_processed)
+            test_size = int(total_len * 0.2)    # 最新20%をテストデータ
+            val_size = int(total_len * 0.15)    # その前15%を検証データ
+            
+            # 最新データから逆算して分割点を決定
+            test_start = total_len - test_size
+            val_start = test_start - val_size
+            
+            # 時系列順序を保持した分割
+            X_train = X_processed.iloc[:val_start].copy()
+            y_train = y.iloc[:val_start].copy()
+            X_val = X_processed.iloc[val_start:test_start].copy()
+            y_val = y.iloc[val_start:test_start].copy()
+            X_test = X_processed.iloc[test_start:].copy()
+            y_test = y.iloc[test_start:].copy()
+            
+            self.logger.info(
+                f"時系列分割: 訓練={len(X_train)}, 検証={len(X_val)}, テスト={len(X_test)}"
             )
 
             # モデル構築
