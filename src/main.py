@@ -47,7 +47,7 @@ from src.demand_forecasting.visualization.want_plotter import WantPlotter
 class DemandForecastingPipeline:
     """
     需要予測分析パイプライン
-    
+
     全体の分析ワークフローを統合し、設定ファイルによるパラメータ管理、
     適切なディレクトリへの結果保存、包括的なエラーハンドリングを提供します。
     """
@@ -58,7 +58,7 @@ class DemandForecastingPipeline:
 
         Args:
             config_path: 設定ファイルパス
-            
+
         Raises:
             ConfigurationError: 設定ファイルの読み込みに失敗した場合
         """
@@ -66,25 +66,25 @@ class DemandForecastingPipeline:
             # 設定管理の初期化
             self.config = Config(config_path)
             self.logger = Logger(self.config.get_logging_config()).get_logger("main")
-            
+
             # 実行開始時刻を記録
             self.start_time = datetime.now()
             self.logger.info(f"需要予測分析パイプライン初期化開始: {self.start_time}")
-            
+
             # 必要なディレクトリの作成
             self._ensure_directories()
-            
+
             # 設定値の検証
             self._validate_configuration()
-            
+
             # コンポーネント初期化
             self._initialize_components()
-            
+
             self.logger.info("需要予測分析パイプライン初期化完了")
-            
+
         except Exception as e:
             error_msg = f"パイプライン初期化エラー: {e}"
-            if hasattr(self, 'logger'):
+            if hasattr(self, "logger"):
                 self.logger.error(error_msg)
                 self.logger.error(f"詳細: {traceback.format_exc()}")
             else:
@@ -98,27 +98,27 @@ class DemandForecastingPipeline:
             # 基本ディレクトリ
             required_dirs = [
                 "data/processed",
-                "models", 
+                "models",
                 "reports",
                 "output/visualizations",
-                "logs"
+                "logs",
             ]
-            
+
             # 設定ファイルから追加ディレクトリを取得
             viz_config = self.config.get_visualization_config()
             if viz_config.get("output_dir"):
                 required_dirs.append(viz_config["output_dir"])
-                
+
             processed_path = self.config.get("data.processed_data_path")
             if processed_path:
                 required_dirs.append(processed_path)
-            
+
             # ディレクトリ作成
             for dir_path in required_dirs:
                 Path(dir_path).mkdir(parents=True, exist_ok=True)
-                
+
             self.logger.info(f"必要なディレクトリを確認/作成しました: {required_dirs}")
-            
+
         except Exception as e:
             raise ConfigurationError(f"ディレクトリ作成エラー: {e}") from e
 
@@ -132,22 +132,22 @@ class DemandForecastingPipeline:
                 ("model.algorithm", "モデルアルゴリズム"),
                 ("quality.thresholds", "品質閾値"),
             ]
-            
+
             missing_configs = []
             for config_key, description in required_configs:
                 if self.config.get(config_key) is None:
                     missing_configs.append(f"{config_key} ({description})")
-            
+
             if missing_configs:
                 raise ConfigurationError(f"必須設定項目が不足: {', '.join(missing_configs)}")
-            
+
             # データファイルの存在確認
             raw_data_path = self.config.get("data.raw_data_path")
             if not Path(raw_data_path).exists():
                 raise ConfigurationError(f"生データファイルが見つかりません: {raw_data_path}")
-            
+
             self.logger.info("設定値の検証が完了しました")
-            
+
         except Exception as e:
             if isinstance(e, ConfigurationError):
                 raise
@@ -157,27 +157,27 @@ class DemandForecastingPipeline:
         """コンポーネントの初期化"""
         try:
             self.logger.info("コンポーネント初期化開始")
-            
+
             # 各コンポーネントを順次初期化
             components = [
                 ("data_processor", DataProcessor),
-                ("feature_engineer", FeatureEngineer), 
+                ("feature_engineer", FeatureEngineer),
                 ("model_builder", ModelBuilder),
                 ("demand_analyzer", DemandCurveAnalyzer),
                 ("quality_evaluator", QualityEvaluator),
                 ("plotter", WantPlotter),
                 ("report_generator", ReportGenerator),
             ]
-            
+
             for component_name, component_class in components:
                 try:
                     setattr(self, component_name, component_class(self.config))
                     self.logger.debug(f"{component_name} 初期化完了")
                 except Exception as e:
                     raise ConfigurationError(f"{component_name} 初期化エラー: {e}") from e
-            
+
             self.logger.info("全コンポーネント初期化完了")
-            
+
         except Exception as e:
             if isinstance(e, ConfigurationError):
                 raise
@@ -188,7 +188,7 @@ class DemandForecastingPipeline:
     ) -> Dict[str, Any]:
         """
         全体分析を実行
-        
+
         設定ファイルによるパラメータ管理、適切なディレクトリへの結果保存、
         包括的なエラーハンドリングを提供します。
 
@@ -198,38 +198,43 @@ class DemandForecastingPipeline:
 
         Returns:
             分析結果辞書
-            
+
         Raises:
             DemandForecastingError: 分析処理中にエラーが発生した場合
         """
         analysis_start_time = datetime.now()
         self.logger.info(f"需要予測分析パイプライン開始: {analysis_start_time}")
-        
+
         # 分析結果を格納する変数を初期化
         analysis_results = []
         quality_report = {}
         visualization_files = []
         report_files = []
-        
+
         try:
             # ステップ1: データ読み込みと前処理
             self.logger.info("=" * 50)
             self.logger.info("ステップ1: データ読み込みと前処理")
             self.logger.info("=" * 50)
-            
+
             try:
                 raw_data = self.data_processor.load_raw_data()
                 self.logger.info(f"生データ読み込み完了: {len(raw_data)} レコード")
-                
+
                 clean_data = self.data_processor.clean_data(raw_data)
                 self.logger.info(f"データクリーニング完了: {len(clean_data)} レコード")
-                
+
                 # 前処理済みデータを保存
-                processed_data_path = Path(self.config.get("data.processed_data_path", "data/processed"))
-                processed_file = processed_data_path / f"cleaned_data_{analysis_start_time.strftime('%Y%m%d_%H%M%S')}.csv"
-                clean_data.to_csv(processed_file, index=False, encoding='utf-8')
+                processed_data_path = Path(
+                    self.config.get("data.processed_data_path", "data/processed")
+                )
+                processed_file = (
+                    processed_data_path
+                    / f"cleaned_data_{analysis_start_time.strftime('%Y%m%d_%H%M%S')}.csv"
+                )
+                clean_data.to_csv(processed_file, index=False, encoding="utf-8")
                 self.logger.info(f"前処理済みデータ保存: {processed_file}")
-                
+
             except Exception as e:
                 raise DataProcessingError(f"データ処理ステップでエラー: {e}") from e
 
@@ -237,44 +242,53 @@ class DemandForecastingPipeline:
             self.logger.info("=" * 50)
             self.logger.info("ステップ2: 特徴量エンジニアリング")
             self.logger.info("=" * 50)
-            
+
             try:
                 baseline_features = self.feature_engineer.create_baseline_features(clean_data)
-                self.logger.info(f"ベースライン特徴量生成完了: {baseline_features.shape[1]} 特徴量")
-                
+                self.logger.info(
+                    f"ベースライン特徴量生成完了: {baseline_features.shape[1]} 特徴量"
+                )
+
                 time_features = self.feature_engineer.add_time_features(baseline_features)
                 self.logger.info(f"時間特徴量追加完了: {time_features.shape[1]} 特徴量")
-                
+
                 weather_features = self.feature_engineer.integrate_weather_features(time_features)
                 self.logger.info(f"気象特徴量統合完了: {weather_features.shape[1]} 特徴量")
 
                 # 高度な時系列特徴量追加
-                final_features = self.feature_engineer.add_advanced_time_series_features(weather_features)
+                final_features = self.feature_engineer.add_advanced_time_series_features(
+                    weather_features
+                )
                 self.logger.info(f"最終特徴量セット完成: {final_features.shape[1]} 特徴量")
-                
+
                 # 特徴量データを保存
-                features_file = processed_data_path / f"features_{analysis_start_time.strftime('%Y%m%d_%H%M%S')}.csv"
-                final_features.to_csv(features_file, index=False, encoding='utf-8')
+                features_file = (
+                    processed_data_path
+                    / f"features_{analysis_start_time.strftime('%Y%m%d_%H%M%S')}.csv"
+                )
+                final_features.to_csv(features_file, index=False, encoding="utf-8")
                 self.logger.info(f"特徴量データ保存: {features_file}")
-                
+
             except Exception as e:
-                raise FeatureEngineeringError(f"特徴量エンジニアリングステップでエラー: {e}") from e
+                raise FeatureEngineeringError(
+                    f"特徴量エンジニアリングステップでエラー: {e}"
+                ) from e
 
             # ステップ3: 分析対象商品の決定
             self.logger.info("=" * 50)
             self.logger.info("ステップ3: 分析対象商品の決定")
             self.logger.info("=" * 50)
-            
+
             try:
                 if target_products is None:
                     target_products = self.data_processor.stratified_product_sampling(
                         final_features, max_products=max_products
                     )
-                
+
                 self.logger.info(f"分析対象商品決定: {len(target_products)} 商品")
                 for i, product in enumerate(target_products, 1):
                     self.logger.info(f"  {i:2d}. {product}")
-                    
+
             except Exception as e:
                 raise DataProcessingError(f"商品選択ステップでエラー: {e}") from e
 
@@ -282,10 +296,10 @@ class DemandForecastingPipeline:
             self.logger.info("=" * 50)
             self.logger.info("ステップ4: 商品別分析実行")
             self.logger.info("=" * 50)
-            
+
             successful_analyses = 0
             failed_analyses = 0
-            
+
             for i, product in enumerate(target_products, 1):
                 self.logger.info(f"商品分析 {i}/{len(target_products)}: {product}")
 
@@ -294,7 +308,9 @@ class DemandForecastingPipeline:
                     product_data = final_features[final_features["商品名称"] == product].copy()
 
                     if len(product_data) < 100:
-                        self.logger.warning(f"データ不足により{product}をスキップ (レコード数: {len(product_data)})")
+                        self.logger.warning(
+                            f"データ不足により{product}をスキップ (レコード数: {len(product_data)})"
+                        )
                         failed_analyses += 1
                         continue
 
@@ -308,7 +324,9 @@ class DemandForecastingPipeline:
                     if result:
                         analysis_results.append(result)
                         successful_analyses += 1
-                        self.logger.info(f"  ✅ {product}: R²={result.get('test_metrics', {}).get('r2_score', 0):.3f}")
+                        self.logger.info(
+                            f"  ✅ {product}: R²={result.get('test_metrics', {}).get('r2_score', 0):.3f}"
+                        )
                     else:
                         failed_analyses += 1
                         self.logger.warning(f"  ❌ {product}: 分析結果なし")
@@ -318,18 +336,18 @@ class DemandForecastingPipeline:
                     self.logger.error(f"  ❌ {product}: 分析エラー - {e}")
                     self.logger.debug(f"詳細エラー: {traceback.format_exc()}")
                     continue
-            
+
             self.logger.info(f"商品別分析完了: 成功={successful_analyses}, 失敗={failed_analyses}")
 
             # ステップ5: 品質評価
             self.logger.info("=" * 50)
             self.logger.info("ステップ5: 品質評価")
             self.logger.info("=" * 50)
-            
+
             try:
                 quality_report = self.quality_evaluator.create_quality_report(analysis_results)
                 self.logger.info("品質評価完了")
-                
+
             except Exception as e:
                 self.logger.error(f"品質評価エラー: {e}")
                 # 品質評価が失敗しても分析は継続
@@ -339,11 +357,13 @@ class DemandForecastingPipeline:
             self.logger.info("=" * 50)
             self.logger.info("ステップ6: 可視化生成")
             self.logger.info("=" * 50)
-            
+
             try:
-                visualization_files = self._generate_visualizations(analysis_results, quality_report)
+                visualization_files = self._generate_visualizations(
+                    analysis_results, quality_report
+                )
                 self.logger.info(f"可視化生成完了: {len(visualization_files)} ファイル")
-                
+
             except Exception as e:
                 self.logger.error(f"可視化生成エラー: {e}")
                 self.logger.debug(f"詳細エラー: {traceback.format_exc()}")
@@ -354,11 +374,11 @@ class DemandForecastingPipeline:
             self.logger.info("=" * 50)
             self.logger.info("ステップ7: レポート生成")
             self.logger.info("=" * 50)
-            
+
             try:
                 report_files = self._generate_reports(analysis_results, quality_report)
                 self.logger.info(f"レポート生成完了: {len(report_files)} ファイル")
-                
+
             except Exception as e:
                 self.logger.error(f"レポート生成エラー: {e}")
                 self.logger.debug(f"詳細エラー: {traceback.format_exc()}")
@@ -368,7 +388,7 @@ class DemandForecastingPipeline:
             # 結果統合
             analysis_end_time = datetime.now()
             execution_time = (analysis_end_time - analysis_start_time).total_seconds()
-            
+
             final_results = {
                 "analysis_results": analysis_results,
                 "quality_report": quality_report,
@@ -400,7 +420,7 @@ class DemandForecastingPipeline:
             error_msg = f"パイプライン実行エラー: {e}"
             self.logger.error(error_msg)
             self.logger.error(f"詳細エラー: {traceback.format_exc()}")
-            
+
             # 部分的な結果でも返却
             partial_results = {
                 "analysis_results": analysis_results,
@@ -414,7 +434,7 @@ class DemandForecastingPipeline:
                     "average_r2": 0.0,
                 },
             }
-            
+
             # エラーでも可能な限り結果を保存
             try:
                 if analysis_results:
@@ -422,7 +442,7 @@ class DemandForecastingPipeline:
                     self._generate_reports(analysis_results, quality_report or {})
             except Exception as save_error:
                 self.logger.error(f"部分的結果保存エラー: {save_error}")
-            
+
             raise DemandForecastingError(error_msg) from e
 
     def _analyze_single_product(
@@ -507,11 +527,11 @@ class DemandForecastingPipeline:
     ) -> List[str]:
         """
         可視化を生成
-        
+
         適切なディレクトリへの結果保存とエラーハンドリングを提供します。
         """
         visualization_files = []
-        
+
         if not analysis_results:
             self.logger.warning("分析結果がないため可視化をスキップします")
             return visualization_files
@@ -521,9 +541,9 @@ class DemandForecastingPipeline:
             viz_config = self.config.get_visualization_config()
             output_dir = Path(viz_config.get("output_dir", "output/visualizations"))
             output_dir.mkdir(parents=True, exist_ok=True)
-            
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
+
             # 品質ダッシュボード
             try:
                 quality_dashboard_path = self.plotter.create_quality_dashboard(
@@ -543,10 +563,10 @@ class DemandForecastingPipeline:
             )[:5]
 
             self.logger.info(f"上位{len(sorted_results)}商品の個別プロット生成中...")
-            
+
             for i, result in enumerate(sorted_results, 1):
                 product_name = result.get("product_name", f"product_{i}")
-                
+
                 try:
                     # 需要曲線プロット
                     if "demand_results" in result:
@@ -574,12 +594,12 @@ class DemandForecastingPipeline:
             # 可視化ファイルリストを保存
             if visualization_files:
                 viz_list_file = output_dir / f"visualization_files_{timestamp}.txt"
-                with open(viz_list_file, 'w', encoding='utf-8') as f:
+                with open(viz_list_file, "w", encoding="utf-8") as f:
                     f.write(f"可視化ファイル一覧 - {timestamp}\n")
                     f.write("=" * 50 + "\n")
                     for i, file_path in enumerate(visualization_files, 1):
                         f.write(f"{i:2d}. {file_path}\n")
-                
+
                 self.logger.info(f"可視化ファイル一覧保存: {viz_list_file}")
 
         except Exception as e:
@@ -595,11 +615,11 @@ class DemandForecastingPipeline:
     ) -> List[str]:
         """
         レポートを生成
-        
+
         適切なディレクトリへの結果保存とエラーハンドリングを提供します。
         """
         report_files = []
-        
+
         if not analysis_results:
             self.logger.warning("分析結果がないためレポート生成をスキップします")
             return report_files
@@ -608,9 +628,9 @@ class DemandForecastingPipeline:
             # レポート出力ディレクトリの確保
             reports_dir = Path("reports")
             reports_dir.mkdir(parents=True, exist_ok=True)
-            
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
+
             # Markdownレポート生成
             try:
                 self.logger.info("Markdownレポート生成中...")
@@ -640,40 +660,43 @@ class DemandForecastingPipeline:
             try:
                 models_dir = Path("models")
                 models_dir.mkdir(parents=True, exist_ok=True)
-                
+
                 model_files = []
                 for i, result in enumerate(analysis_results):
                     if "model" in result and result["model"] is not None:
                         product_name = result.get("product_name", f"product_{i}")
                         # ファイル名に使用できない文字を置換
-                        safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in product_name)
+                        safe_name = "".join(
+                            c if c.isalnum() or c in "._-" else "_" for c in product_name
+                        )
                         model_file = models_dir / f"model_{safe_name}_{timestamp}.pkl"
-                        
+
                         try:
                             import pickle
-                            with open(model_file, 'wb') as f:
+
+                            with open(model_file, "wb") as f:
                                 pickle.dump(result["model"], f)
                             model_files.append(str(model_file))
                             self.logger.debug(f"モデル保存: {model_file}")
                         except Exception as e:
                             self.logger.warning(f"モデル保存エラー ({product_name}): {e}")
-                
+
                 if model_files:
                     self.logger.info(f"モデルファイル保存完了: {len(model_files)} ファイル")
                     report_files.extend(model_files)
-                    
+
             except Exception as e:
                 self.logger.error(f"モデル保存エラー: {e}")
 
             # レポートファイルリストを保存
             if report_files:
                 report_list_file = reports_dir / f"report_files_{timestamp}.txt"
-                with open(report_list_file, 'w', encoding='utf-8') as f:
+                with open(report_list_file, "w", encoding="utf-8") as f:
                     f.write(f"レポートファイル一覧 - {timestamp}\n")
                     f.write("=" * 50 + "\n")
                     for i, file_path in enumerate(report_files, 1):
                         f.write(f"{i:2d}. {file_path}\n")
-                
+
                 self.logger.info(f"レポートファイル一覧保存: {report_list_file}")
 
         except Exception as e:
@@ -753,7 +776,7 @@ class DemandForecastingPipeline:
     def _log_summary(self, results: Dict[str, Any]):
         """
         結果サマリーをログ出力
-        
+
         包括的な実行結果の要約を提供します。
         """
         summary = results["summary"]
@@ -762,7 +785,7 @@ class DemandForecastingPipeline:
         self.logger.info("=" * 60)
         self.logger.info("🎯 需要予測分析パイプライン 実行結果サマリー")
         self.logger.info("=" * 60)
-        
+
         # 実行情報
         if execution_info:
             self.logger.info("📅 実行情報:")
@@ -771,57 +794,63 @@ class DemandForecastingPipeline:
             if "end_time" in execution_info:
                 self.logger.info(f"   終了時刻: {execution_info['end_time']}")
             if "execution_time_seconds" in execution_info:
-                exec_time = execution_info['execution_time_seconds']
+                exec_time = execution_info["execution_time_seconds"]
                 hours = int(exec_time // 3600)
                 minutes = int((exec_time % 3600) // 60)
                 seconds = int(exec_time % 60)
                 self.logger.info(f"   実行時間: {hours:02d}:{minutes:02d}:{seconds:02d}")
-            
+
             if "successful_analyses" in execution_info and "failed_analyses" in execution_info:
-                total = execution_info['successful_analyses'] + execution_info['failed_analyses']
-                success_rate = execution_info['successful_analyses'] / total * 100 if total > 0 else 0
-                self.logger.info(f"   成功/失敗: {execution_info['successful_analyses']}/{execution_info['failed_analyses']} ({success_rate:.1f}%)")
-        
+                total = execution_info["successful_analyses"] + execution_info["failed_analyses"]
+                success_rate = (
+                    execution_info["successful_analyses"] / total * 100 if total > 0 else 0
+                )
+                self.logger.info(
+                    f"   成功/失敗: {execution_info['successful_analyses']}/{execution_info['failed_analyses']} ({success_rate:.1f}%)"
+                )
+
         # 分析結果
         self.logger.info("📊 分析結果:")
         self.logger.info(f"   分析商品数: {summary['total_products_analyzed']}")
         self.logger.info(f"   成功率: {summary['success_rate']*100:.1f}%")
         self.logger.info(f"   平均R²スコア: {summary['average_r2']:.3f}")
-        
+
         # 品質レベル分布
         quality_report = results.get("quality_report", {})
         if "quality_distribution" in quality_report:
             self.logger.info("   品質レベル分布:")
             for level, count in quality_report["quality_distribution"].items():
                 self.logger.info(f"     {level}: {count} 商品")
-        
+
         # 出力ファイル
         self.logger.info("📁 出力ファイル:")
         self.logger.info(f"   可視化ファイル数: {len(results['visualization_files'])}")
         self.logger.info(f"   レポートファイル数: {len(results['report_files'])}")
-        
+
         # 設定情報
         self.logger.info("⚙️  使用設定:")
         model_config = self.config.get_model_config()
         self.logger.info(f"   モデルアルゴリズム: {model_config.get('algorithm', 'N/A')}")
         self.logger.info(f"   交差検証フォールド数: {model_config.get('cv_folds', 'N/A')}")
-        
+
         quality_config = self.config.get_quality_config()
-        thresholds = quality_config.get('thresholds', {})
-        self.logger.info(f"   品質閾値: Premium≥{thresholds.get('premium', 'N/A')}, Standard≥{thresholds.get('standard', 'N/A')}, Basic≥{thresholds.get('basic', 'N/A')}")
-        
+        thresholds = quality_config.get("thresholds", {})
+        self.logger.info(
+            f"   品質閾値: Premium≥{thresholds.get('premium', 'N/A')}, Standard≥{thresholds.get('standard', 'N/A')}, Basic≥{thresholds.get('basic', 'N/A')}"
+        )
+
         # エラー情報
         if "error" in results:
             self.logger.error("❌ エラー情報:")
             self.logger.error(f"   {results['error']}")
-        
+
         self.logger.info("=" * 60)
 
 
 def main():
     """
     メイン関数
-    
+
     コマンドライン引数を解析し、需要予測分析パイプラインを実行します。
     包括的なエラーハンドリングとログ出力を提供します。
     """
@@ -835,59 +864,45 @@ def main():
   python src/main.py --config config/custom.yaml       # カスタム設定で実行
   python src/main.py --products "商品A" "商品B"         # 特定商品のみ分析
   python src/main.py --max-products 20 --verbose       # 詳細ログで20商品まで分析
-        """
+        """,
     )
-    
+
     parser.add_argument(
-        "--config", 
-        type=str, 
-        help="設定ファイルパス (デフォルト: config/config.yaml)"
+        "--config", type=str, help="設定ファイルパス (デフォルト: config/config.yaml)"
     )
     parser.add_argument(
-        "--products", 
-        type=str, 
-        nargs="+", 
-        help="対象商品リスト (指定しない場合は自動選択)"
+        "--products", type=str, nargs="+", help="対象商品リスト (指定しない場合は自動選択)"
     )
     parser.add_argument(
-        "--max-products", 
-        type=int, 
-        default=10, 
-        help="最大処理商品数 (デフォルト: 10)"
+        "--max-products", type=int, default=10, help="最大処理商品数 (デフォルト: 10)"
     )
+    parser.add_argument("--verbose", action="store_true", help="詳細ログ出力を有効にする")
     parser.add_argument(
-        "--verbose", 
-        action="store_true", 
-        help="詳細ログ出力を有効にする"
-    )
-    parser.add_argument(
-        "--dry-run", 
-        action="store_true", 
-        help="設定確認のみ実行（実際の分析は行わない）"
+        "--dry-run", action="store_true", help="設定確認のみ実行（実際の分析は行わない）"
     )
 
     args = parser.parse_args()
-    
+
     # 実行開始時刻
     start_time = datetime.now()
-    
+
     # 初期化段階のエラーハンドリング
     pipeline = None
     try:
         print("🚀 生鮮食品需要予測・分析システム")
         print("=" * 50)
         print(f"実行開始時刻: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        
+
         if args.config:
             print(f"設定ファイル: {args.config}")
         else:
             print("設定ファイル: config/config.yaml (デフォルト)")
-            
+
         if args.products:
             print(f"対象商品: {', '.join(args.products)}")
         else:
             print(f"対象商品: 自動選択 (最大{args.max_products}商品)")
-            
+
         print("=" * 50)
 
         # パイプライン初期化
@@ -912,22 +927,21 @@ def main():
         # 分析実行
         print("🔄 分析実行中...")
         results = pipeline.run_full_analysis(
-            target_products=args.products, 
-            max_products=args.max_products
+            target_products=args.products, max_products=args.max_products
         )
 
         # 実行時間計算
         end_time = datetime.now()
         execution_time = end_time - start_time
-        
+
         # 結果表示
         print("\n" + "=" * 60)
         print("🎉 分析完了!")
         print("=" * 60)
-        
-        summary = results['summary']
-        execution_info = results.get('execution_info', {})
-        
+
+        summary = results["summary"]
+        execution_info = results.get("execution_info", {})
+
         print(f"📊 分析商品数: {summary['total_products_analyzed']}")
         print(f"📈 成功率: {summary['success_rate']*100:.1f}%")
         print(f"🎯 平均R²スコア: {summary['average_r2']:.3f}")
@@ -948,12 +962,12 @@ def main():
             print(f"\n📄 生成されたファイル ({len(all_files)}件):")
             for i, file_path in enumerate(all_files, 1):
                 print(f"  {i:2d}. {file_path}")
-        
+
         # 成功メッセージ
         print("\n🎊 すべての処理が正常に完了しました!")
-        
+
         # 終了コード
-        if summary['success_rate'] > 0.5:
+        if summary["success_rate"] > 0.5:
             sys.exit(0)  # 成功
         else:
             print("⚠️  成功率が低いため、設定やデータを確認してください。")
@@ -962,36 +976,36 @@ def main():
     except KeyboardInterrupt:
         print("\n\n⏹️  ユーザーによって処理が中断されました")
         sys.exit(130)
-        
+
     except ConfigurationError as e:
         print(f"\n❌ 設定エラー: {e}")
         print("💡 設定ファイルの内容を確認してください。")
         sys.exit(1)
-        
+
     except (DataProcessingError, FeatureEngineeringError, ModelBuildingError) as e:
         print(f"\n❌ 分析処理エラー: {e}")
         print("💡 データファイルの内容や形式を確認してください。")
-        if pipeline and hasattr(pipeline, 'logger'):
+        if pipeline and hasattr(pipeline, "logger"):
             pipeline.logger.error(f"分析処理エラー: {e}")
         sys.exit(1)
-        
+
     except (VisualizationError, ReportGenerationError) as e:
         print(f"\n⚠️  出力生成エラー: {e}")
         print("💡 分析は完了しましたが、一部の出力生成に失敗しました。")
-        if pipeline and hasattr(pipeline, 'logger'):
+        if pipeline and hasattr(pipeline, "logger"):
             pipeline.logger.warning(f"出力生成エラー: {e}")
         sys.exit(2)
-        
+
     except DemandForecastingError as e:
         print(f"\n❌ システムエラー: {e}")
-        if pipeline and hasattr(pipeline, 'logger'):
+        if pipeline and hasattr(pipeline, "logger"):
             pipeline.logger.error(f"システムエラー: {e}")
         sys.exit(1)
-        
+
     except Exception as e:
         print(f"\n💥 予期しないエラーが発生しました: {e}")
         print(f"詳細: {traceback.format_exc()}")
-        if pipeline and hasattr(pipeline, 'logger'):
+        if pipeline and hasattr(pipeline, "logger"):
             pipeline.logger.critical(f"予期しないエラー: {e}")
             pipeline.logger.critical(f"詳細: {traceback.format_exc()}")
         sys.exit(1)

@@ -399,13 +399,13 @@ class ReportGenerator:
                 "time_vs_weather": [],
                 "overall_improvement": {},
                 "feature_contribution": {},
-                "success_rate_by_stage": {}
+                "success_rate_by_stage": {},
             }
 
             # 各商品の段階別性能を分析
             for result in analysis_results:
                 product_name = result.get("product_name", "Unknown")
-                
+
                 # 段階別性能データを取得（存在する場合）
                 baseline_score = result.get("baseline_metrics", {}).get("r2_score", 0.0)
                 time_score = result.get("time_enhanced_metrics", {}).get("r2_score", 0.0)
@@ -414,42 +414,60 @@ class ReportGenerator:
                 # ベースライン vs 時間特徴量追加の改善効果
                 if baseline_score > 0 and time_score > 0:
                     baseline_time_improvement = time_score - baseline_score
-                    improvement_analysis["baseline_vs_time"].append({
-                        "product_name": product_name,
-                        "baseline_r2": baseline_score,
-                        "time_enhanced_r2": time_score,
-                        "improvement": baseline_time_improvement,
-                        "improvement_rate": (baseline_time_improvement / baseline_score * 100) if baseline_score > 0 else 0
-                    })
+                    improvement_analysis["baseline_vs_time"].append(
+                        {
+                            "product_name": product_name,
+                            "baseline_r2": baseline_score,
+                            "time_enhanced_r2": time_score,
+                            "improvement": baseline_time_improvement,
+                            "improvement_rate": (
+                                (baseline_time_improvement / baseline_score * 100)
+                                if baseline_score > 0
+                                else 0
+                            ),
+                        }
+                    )
 
                 # 時間特徴量 vs 気象特徴量追加の改善効果
                 if time_score > 0 and final_score > 0:
                     time_weather_improvement = final_score - time_score
-                    improvement_analysis["time_vs_weather"].append({
-                        "product_name": product_name,
-                        "time_enhanced_r2": time_score,
-                        "final_r2": final_score,
-                        "improvement": time_weather_improvement,
-                        "improvement_rate": (time_weather_improvement / time_score * 100) if time_score > 0 else 0
-                    })
+                    improvement_analysis["time_vs_weather"].append(
+                        {
+                            "product_name": product_name,
+                            "time_enhanced_r2": time_score,
+                            "final_r2": final_score,
+                            "improvement": time_weather_improvement,
+                            "improvement_rate": (
+                                (time_weather_improvement / time_score * 100)
+                                if time_score > 0
+                                else 0
+                            ),
+                        }
+                    )
 
             # 全体的な改善効果統計
             if improvement_analysis["baseline_vs_time"]:
-                baseline_improvements = [item["improvement"] for item in improvement_analysis["baseline_vs_time"]]
+                baseline_improvements = [
+                    item["improvement"] for item in improvement_analysis["baseline_vs_time"]
+                ]
                 improvement_analysis["overall_improvement"]["baseline_to_time"] = {
                     "mean_improvement": sum(baseline_improvements) / len(baseline_improvements),
                     "positive_improvements": len([x for x in baseline_improvements if x > 0]),
                     "total_products": len(baseline_improvements),
-                    "success_rate": len([x for x in baseline_improvements if x > 0]) / len(baseline_improvements)
+                    "success_rate": len([x for x in baseline_improvements if x > 0])
+                    / len(baseline_improvements),
                 }
 
             if improvement_analysis["time_vs_weather"]:
-                weather_improvements = [item["improvement"] for item in improvement_analysis["time_vs_weather"]]
+                weather_improvements = [
+                    item["improvement"] for item in improvement_analysis["time_vs_weather"]
+                ]
                 improvement_analysis["overall_improvement"]["time_to_weather"] = {
                     "mean_improvement": sum(weather_improvements) / len(weather_improvements),
                     "positive_improvements": len([x for x in weather_improvements if x > 0]),
                     "total_products": len(weather_improvements),
-                    "success_rate": len([x for x in weather_improvements if x > 0]) / len(weather_improvements)
+                    "success_rate": len([x for x in weather_improvements if x > 0])
+                    / len(weather_improvements),
                 }
 
             # 特徴量カテゴリ別貢献度分析
@@ -469,7 +487,7 @@ class ReportGenerator:
                     "mean_importance": sum(importances) / len(importances),
                     "max_importance": max(importances),
                     "min_importance": min(importances),
-                    "feature_count": len(importances)
+                    "feature_count": len(importances),
                 }
 
             # 段階別成功率分析
@@ -509,26 +527,26 @@ class ReportGenerator:
             特徴量カテゴリ
         """
         feature_name_lower = feature_name.lower()
-        
+
         # 基本特徴量
         if any(keyword in feature_name_lower for keyword in ["価格", "単価", "売上", "数量"]):
             return "基本特徴量"
-        
+
         # 時間特徴量
-        elif any(keyword in feature_name_lower for keyword in ["時", "曜日", "月", "週末", "混雑"]):
+        elif any(
+            keyword in feature_name_lower for keyword in ["時", "曜日", "月", "週末", "混雑"]
+        ):
             return "時間特徴量"
-        
+
         # 気象特徴量
         elif any(keyword in feature_name_lower for keyword in ["気温", "天気", "湿度", "降水"]):
             return "気象特徴量"
-        
+
         # その他
         else:
             return "その他特徴量"
 
-    def generate_improvement_analysis_report(
-        self, improvement_analysis: Dict[str, Any]
-    ) -> str:
+    def generate_improvement_analysis_report(self, improvement_analysis: Dict[str, Any]) -> str:
         """
         特徴量改善効果のレポートセクションを生成
 
@@ -542,7 +560,7 @@ class ReportGenerator:
 
         # 全体的な改善効果
         overall = improvement_analysis.get("overall_improvement", {})
-        
+
         if "baseline_to_time" in overall:
             baseline_to_time = overall["baseline_to_time"]
             report += f"""### ベースライン → 時間特徴量追加の効果
@@ -569,17 +587,15 @@ class ReportGenerator:
             report += "### 特徴量カテゴリ別重要度\n\n"
             report += "| カテゴリ | 平均重要度 | 最大重要度 | 特徴量数 |\n"
             report += "|---|---|---|---|\n"
-            
+
             # 重要度順にソート
             sorted_categories = sorted(
-                feature_contrib.items(),
-                key=lambda x: x[1]["mean_importance"],
-                reverse=True
+                feature_contrib.items(), key=lambda x: x[1]["mean_importance"], reverse=True
             )
-            
+
             for category, stats in sorted_categories:
                 report += f"| {category} | {stats['mean_importance']:.3f} | {stats['max_importance']:.3f} | {stats['feature_count']} |\n"
-            
+
             report += "\n"
 
         # 改善効果の詳細分析
@@ -588,17 +604,15 @@ class ReportGenerator:
             report += "### 時間特徴量追加による個別改善効果（上位10商品）\n\n"
             report += "| 商品名 | ベースライン | 時間特徴量追加 | 改善度 | 改善率 |\n"
             report += "|---|---|---|---|---|\n"
-            
+
             # 改善度順にソート
             sorted_improvements = sorted(
-                baseline_vs_time,
-                key=lambda x: x["improvement"],
-                reverse=True
+                baseline_vs_time, key=lambda x: x["improvement"], reverse=True
             )
-            
+
             for item in sorted_improvements[:10]:
                 report += f"| {item['product_name']} | {item['baseline_r2']:.3f} | {item['time_enhanced_r2']:.3f} | {item['improvement']:+.3f} | {item['improvement_rate']:+.1f}% |\n"
-            
+
             report += "\n"
 
         time_vs_weather = improvement_analysis.get("time_vs_weather", [])
@@ -606,17 +620,15 @@ class ReportGenerator:
             report += "### 気象特徴量追加による個別改善効果（上位10商品）\n\n"
             report += "| 商品名 | 時間特徴量 | 最終モデル | 改善度 | 改善率 |\n"
             report += "|---|---|---|---|---|\n"
-            
+
             # 改善度順にソート
             sorted_weather_improvements = sorted(
-                time_vs_weather,
-                key=lambda x: x["improvement"],
-                reverse=True
+                time_vs_weather, key=lambda x: x["improvement"], reverse=True
             )
-            
+
             for item in sorted_weather_improvements[:10]:
                 report += f"| {item['product_name']} | {item['time_enhanced_r2']:.3f} | {item['final_r2']:.3f} | {item['improvement']:+.3f} | {item['improvement_rate']:+.1f}% |\n"
-            
+
             report += "\n"
 
         # 改善効果のまとめ
@@ -736,7 +748,7 @@ class ReportGenerator:
 
             # 特徴量改善効果分析レポート
             improvement_analysis = self.analyze_feature_improvement_effects(analysis_results)
-            
+
             # ベースライン vs 時間特徴量の改善効果
             baseline_time_data = improvement_analysis.get("baseline_vs_time", [])
             if baseline_time_data:
@@ -758,14 +770,16 @@ class ReportGenerator:
             if feature_contrib:
                 contrib_data = []
                 for category, stats in feature_contrib.items():
-                    contrib_data.append({
-                        "特徴量カテゴリ": category,
-                        "平均重要度": stats["mean_importance"],
-                        "最大重要度": stats["max_importance"],
-                        "最小重要度": stats["min_importance"],
-                        "特徴量数": stats["feature_count"]
-                    })
-                
+                    contrib_data.append(
+                        {
+                            "特徴量カテゴリ": category,
+                            "平均重要度": stats["mean_importance"],
+                            "最大重要度": stats["max_importance"],
+                            "最小重要度": stats["min_importance"],
+                            "特徴量数": stats["feature_count"],
+                        }
+                    )
+
                 contrib_df = pd.DataFrame(contrib_data)
                 contrib_path = save_dir / "feature_category_contribution.csv"
                 contrib_df.to_csv(contrib_path, index=False, encoding="utf-8-sig")
@@ -776,14 +790,16 @@ class ReportGenerator:
             if overall_improvement:
                 summary_data = []
                 for stage, stats in overall_improvement.items():
-                    summary_data.append({
-                        "改善段階": stage,
-                        "平均改善度": stats["mean_improvement"],
-                        "改善商品数": stats["positive_improvements"],
-                        "総商品数": stats["total_products"],
-                        "成功率": stats["success_rate"]
-                    })
-                
+                    summary_data.append(
+                        {
+                            "改善段階": stage,
+                            "平均改善度": stats["mean_improvement"],
+                            "改善商品数": stats["positive_improvements"],
+                            "総商品数": stats["total_products"],
+                            "成功率": stats["success_rate"],
+                        }
+                    )
+
                 summary_df = pd.DataFrame(summary_data)
                 summary_path = save_dir / "improvement_summary.csv"
                 summary_df.to_csv(summary_path, index=False, encoding="utf-8-sig")
@@ -796,8 +812,10 @@ class ReportGenerator:
             raise ReportGenerationError(f"CSVレポート生成エラー: {e}")
 
     def generate_comprehensive_report(
-        self, analysis_results: List[Dict[str, Any]], quality_report: Dict[str, Any],
-        output_dir: str = None
+        self,
+        analysis_results: List[Dict[str, Any]],
+        quality_report: Dict[str, Any],
+        output_dir: str = None,
     ) -> Dict[str, str]:
         """
         包括的なレポート生成（Markdown + CSV）
@@ -813,7 +831,7 @@ class ReportGenerator:
         try:
             if output_dir is None:
                 output_dir = "reports"
-            
+
             output_path = Path(output_dir)
             output_path.mkdir(parents=True, exist_ok=True)
 
@@ -821,7 +839,9 @@ class ReportGenerator:
 
             # Markdownレポート生成
             markdown_report = self.generate_markdown_report(analysis_results, quality_report)
-            markdown_path = self.save_markdown_report(markdown_report, output_path / "comprehensive_analysis_report.md")
+            markdown_path = self.save_markdown_report(
+                markdown_report, output_path / "comprehensive_analysis_report.md"
+            )
             generated_files["markdown_report"] = markdown_path
 
             # CSVレポート生成
@@ -831,13 +851,13 @@ class ReportGenerator:
             # 特徴量改善効果の詳細分析レポート
             improvement_analysis = self.analyze_feature_improvement_effects(analysis_results)
             improvement_report = self.generate_improvement_analysis_report(improvement_analysis)
-            
+
             improvement_path = output_path / "feature_improvement_analysis.md"
             with open(improvement_path, "w", encoding="utf-8") as f:
                 f.write(f"# 特徴量改善効果分析レポート\n\n")
                 f.write(f"**作成日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}\n\n")
                 f.write(improvement_report)
-            
+
             generated_files["improvement_analysis"] = str(improvement_path)
 
             # 段階的導入計画の詳細レポート
@@ -847,7 +867,7 @@ class ReportGenerator:
                 f.write(f"# 段階的導入計画詳細\n\n")
                 f.write(f"**作成日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}\n\n")
                 f.write(implementation_plan)
-            
+
             generated_files["implementation_plan"] = str(plan_path)
 
             self.logger.info(f"包括的レポート生成完了: {len(generated_files)}種類のレポート")
@@ -856,7 +876,9 @@ class ReportGenerator:
         except Exception as e:
             raise ReportGenerationError(f"包括的レポート生成エラー: {e}")
 
-    def _generate_detailed_implementation_plan(self, analysis_results: List[Dict[str, Any]]) -> str:
+    def _generate_detailed_implementation_plan(
+        self, analysis_results: List[Dict[str, Any]]
+    ) -> str:
         """
         詳細な段階的導入計画を生成
 
@@ -876,7 +898,7 @@ class ReportGenerator:
             quality_level = result.get("quality_level", "Rejected")
             product_name = result.get("product_name", "Unknown")
             r2_score = result.get("test_metrics", {}).get("r2_score", 0.0)
-            
+
             demand_results = result.get("demand_results", {})
             optimal_price = demand_results.get("optimal_price", 0)
             current_price = demand_results.get("current_price", 0)
@@ -889,7 +911,7 @@ class ReportGenerator:
                 "r2_score": r2_score,
                 "price_change": price_change,
                 "optimal_price": optimal_price,
-                "current_price": current_price
+                "current_price": current_price,
             }
 
             if quality_level == "Premium":
@@ -902,13 +924,37 @@ class ReportGenerator:
                 rejected_products.append(product_info)
 
         # 各フェーズの期待効果を計算
-        premium_revenue_impact = sum([abs(p["price_change"]) for p in premium_products]) / len(premium_products) if premium_products else 0
-        standard_revenue_impact = sum([abs(p["price_change"]) for p in standard_products]) / len(standard_products) if standard_products else 0
+        premium_revenue_impact = (
+            sum([abs(p["price_change"]) for p in premium_products]) / len(premium_products)
+            if premium_products
+            else 0
+        )
+        standard_revenue_impact = (
+            sum([abs(p["price_change"]) for p in standard_products]) / len(standard_products)
+            if standard_products
+            else 0
+        )
 
-        premium_avg_r2 = sum([p["r2_score"] for p in premium_products]) / len(premium_products) if premium_products else 0.0
-        standard_avg_r2 = sum([p["r2_score"] for p in standard_products]) / len(standard_products) if standard_products else 0.0
-        basic_avg_r2 = sum([p["r2_score"] for p in basic_products]) / len(basic_products) if basic_products else 0.0
-        rejected_avg_r2 = sum([p["r2_score"] for p in rejected_products]) / len(rejected_products) if rejected_products else 0.0
+        premium_avg_r2 = (
+            sum([p["r2_score"] for p in premium_products]) / len(premium_products)
+            if premium_products
+            else 0.0
+        )
+        standard_avg_r2 = (
+            sum([p["r2_score"] for p in standard_products]) / len(standard_products)
+            if standard_products
+            else 0.0
+        )
+        basic_avg_r2 = (
+            sum([p["r2_score"] for p in basic_products]) / len(basic_products)
+            if basic_products
+            else 0.0
+        )
+        rejected_avg_r2 = (
+            sum([p["r2_score"] for p in rejected_products]) / len(rejected_products)
+            if rejected_products
+            else 0.0
+        )
 
         report = f"""## 段階的導入計画詳細
 
