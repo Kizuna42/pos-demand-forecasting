@@ -137,6 +137,10 @@ class ModelBuilder:
             
             self.logger.info(
                 f"時系列分割: 訓練={len(X_train)}, 検証={len(X_val)}, テスト={len(X_test)}"
+              
+            )
+            X_train, X_val, y_train, y_val = train_test_split(
+                X_temp, y_temp, test_size=0.2, random_state=42
             )
 
             # モデル構築
