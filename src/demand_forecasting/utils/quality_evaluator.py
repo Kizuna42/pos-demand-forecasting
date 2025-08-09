@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 
 from ..utils.config import Config
-from ..utils.exceptions import QualityEvaluationError
+from ..utils.exceptions import QualityEvaluationError  # noqa: F401
 from ..utils.logger import Logger
 
 

@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import seaborn as sns
 
 from ..utils.config import Config
@@ -471,7 +470,7 @@ class WantPlotter:
         ax.text(
             0.5,
             0.7,
-            f"平均R²スコア",
+            "平均R²スコア",
             ha="center",
             va="center",
             transform=ax.transAxes,

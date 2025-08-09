@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional
 
 import chardet
 import numpy as np
@@ -112,7 +112,7 @@ class DataProcessor:
         missing_cols = missing_info[missing_info > 0]
 
         if len(missing_cols) > 0:
-            self.logger.info(f"欠損値が見つかりました:")
+            self.logger.info("欠損値が見つかりました:")
             for col, count in missing_cols.items():
                 percentage = (count / len(df)) * 100
                 self.logger.info(f"  {col}: {count} 件 ({percentage:.1f}%)")
@@ -448,7 +448,7 @@ class DataProcessor:
                                 year, month, day = match.groups()
                                 return f"{year}-{int(month):02d}-{int(day):02d}"
                             return date_str
-                        except:
+                        except Exception:
                             return date_str
 
                     converted_dates = date_series.apply(parse_japanese_date)
