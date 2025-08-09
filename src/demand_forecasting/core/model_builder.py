@@ -7,7 +7,12 @@ import pandas as pd
 import shap
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import KFold, TimeSeriesSplit, cross_val_score, train_test_split
+from sklearn.model_selection import (
+    KFold,
+    TimeSeriesSplit,
+    cross_val_score,
+    train_test_split,
+)
 from sklearn.preprocessing import StandardScaler
 
 try:
@@ -19,7 +24,7 @@ except ImportError:
 
 try:
     from skopt import gp_minimize
-    from skopt.space import Real, Integer
+    from skopt.space import Integer, Real
     from skopt.utils import use_named_args
 
     BAYESIAN_OPT_AVAILABLE = True
@@ -486,7 +491,7 @@ class ModelBuilder:
         score_diff = max(0, train_score - test_score)
 
         # 過学習閾値
-        overfitting_threshold = self.config.get_quality_config().get("overfitting_threshold", 0.1)
+        overfitting_threshold = self.config.get_quality_config().get("overfitting_threshold", 0.01)
 
         # 0-1にスケール
         overfitting_score = min(1.0, score_diff / overfitting_threshold)

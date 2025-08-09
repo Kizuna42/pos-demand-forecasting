@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+import hashlib
 import json
 import sqlite3
-import hashlib
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -532,13 +532,29 @@ class FeatureEngineer:
                         f"気象データ取得中 ({api_info['name']}): {min_date} ~ {max_date}"
                     )
 
-                    response = requests.get(
-                        api_info["endpoint"],
-                        params=api_info["params"],
-                        timeout=30,
-                        headers={"User-Agent": "DemandForecasting/1.0"},
-                    )
-                    response.raise_for_status()
+                    # リトライ（最大3回、指数バックオフ）
+                    last_exc = None
+                    for attempt in range(3):
+                        try:
+                            response = requests.get(
+                                api_info["endpoint"],
+                                params=api_info["params"],
+                                timeout=15,
+                                headers={"User-Agent": "DemandForecasting/1.0"},
+                            )
+                            response.raise_for_status()
+                            break
+                        except requests.RequestException as rexc:
+                            last_exc = rexc
+                            wait = 2**attempt
+                            self.logger.warning(
+                                f"気象APIリトライ {attempt+1}/3 失敗: {rexc}. {wait}s 待機"
+                            )
+                            import time
+
+                            time.sleep(wait)
+                    else:
+                        raise last_exc
 
                     weather_data = response.json()
 

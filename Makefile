@@ -30,15 +30,15 @@ clean:
 ## Lint using flake8, black, and isort (use `make format` to do formatting)
 .PHONY: lint
 lint:
-	flake8 pos2
-	isort --check --diff pos2
-	black --check pos2
+	flake8 src
+	isort --check --diff src
+	black --check src
 
 ## Format source code with black
 .PHONY: format
 format:
-	isort pos2
-	black pos2
+	isort src
+	black src
 
 
 
@@ -65,7 +65,7 @@ create_environment:
 ## Make dataset
 .PHONY: data
 data: requirements
-	$(PYTHON_INTERPRETER) pos2/dataset.py
+	@echo "No dataset generation script in src; skip."
 
 
 #################################################################################

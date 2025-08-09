@@ -47,7 +47,7 @@ class ReportGenerator:
             # 全体品質評価
             report += self._generate_quality_overview(quality_report)
 
-            # 個別商品分析結果
+            # 個別商品分析結果（無い場合はサマリーのみ）
             report += self._generate_product_analysis(analysis_results)
 
             # 特徴量改善効果分析
