@@ -13,16 +13,12 @@ Requirements: 8.1, 8.2, 8.3, 8.4
 
 import argparse
 from datetime import datetime
-import os
 from pathlib import Path
 import sys
 import traceback
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-
-# プロジェクトルートをパスに追加
-sys.path.append(str(Path(__file__).parent.parent))
 
 from src.demand_forecasting.core.data_processor import DataProcessor
 from src.demand_forecasting.core.demand_analyzer import DemandCurveAnalyzer
@@ -423,21 +419,9 @@ class DemandForecastingPipeline:
             self.logger.error(error_msg)
             self.logger.error(f"詳細エラー: {traceback.format_exc()}")
 
-            # 部分的な結果でも返却
-            partial_results = {
-                "analysis_results": analysis_results,
-                "quality_report": quality_report,
-                "visualization_files": visualization_files,
-                "report_files": report_files,
-                "error": error_msg,
-                "summary": {
-                    "total_products_analyzed": len(analysis_results),
-                    "success_rate": 0.0,
-                    "average_r2": 0.0,
-                },
-            }
+            # 部分的な結果でも保存だけは試みる
 
-            # エラーでも可能な限り結果を保存
+            # エラーでも可能な限り結果を保存（副作用のみ）
             try:
                 if analysis_results:
                     self.logger.info("エラー発生時の部分的結果を保存中...")
@@ -787,13 +771,14 @@ class DemandForecastingPipeline:
         包括的な実行結果の要約を提供します。
         """
         summary = results["summary"]
-        execution_info = results.get("execution_info", {})
+        # 実行情報は必要に応じて results["execution_info"] を参照
 
         self.logger.info("=" * 60)
         self.logger.info("🎯 需要予測分析パイプライン 実行結果サマリー")
         self.logger.info("=" * 60)
 
         # 実行情報
+        execution_info = results.get("execution_info", {})
         if execution_info:
             self.logger.info("📅 実行情報:")
             if "start_time" in execution_info:
@@ -947,7 +932,6 @@ def main():
         print("=" * 60)
 
         summary = results["summary"]
-        execution_info = results.get("execution_info", {})
 
         print(f"📊 分析商品数: {summary['total_products_analyzed']}")
         print(f"📈 成功率: {summary['success_rate']*100:.1f}%")

@@ -75,7 +75,7 @@ class ReportGenerator:
 
         return f"""# 生鮮食品需要予測・分析レポート
 
-**作成日時**: {now.strftime('%Y年%m月%d日 %H:%M:%S')}  
+**作成日時**: {now.strftime('%Y年%m月%d日 %H:%M:%S')}
 **システム**: 生鮮食品需要予測・分析システム v0.1.0
 
 ---
@@ -182,7 +182,7 @@ class ReportGenerator:
 
             report += f"""#### {i}. {product_name}
 
-**品質レベル**: {quality_level}  
+**品質レベル**: {quality_level}
 **モデル性能**:
 - R²スコア: {r2_score:.4f}
 - RMSE: {rmse:.2f}
@@ -223,7 +223,7 @@ class ReportGenerator:
 
             report += f"| {product_name} | {quality_level} | {r2_score:.3f} | ¥{optimal_price:.0f} | {price_change:+.1f}% |\n"
 
-        report += "\n---\n\n"
+            report += "\n---\n\n"
         return report
 
     def _generate_improvement_recommendations(self, quality_report: Dict[str, Any]) -> str:
@@ -286,7 +286,7 @@ class ReportGenerator:
         return f"""## 段階的実装計画
 
 ### フェーズ1: 即座実行（Premium品質モデル）
-**対象商品数**: {len(premium_products)}商品  
+**対象商品数**: {len(premium_products)}商品
 **実装期間**: 即座〜2週間
 
 **対象商品**:
@@ -299,7 +299,7 @@ class ReportGenerator:
 - 顧客満足度の向上
 
 ### フェーズ2: 慎重実行（Standard品質モデル）
-**対象商品数**: {len(standard_products)}商品  
+**対象商品数**: {len(standard_products)}商品
 **実装期間**: 2週間〜1ヶ月
 
 **実装条件**:
@@ -308,7 +308,7 @@ class ReportGenerator:
 - 手動調整機能の準備
 
 ### フェーズ3: 改善後実行（Basic品質モデル）
-**対象商品数**: {len(basic_products)}商品  
+**対象商品数**: {len(basic_products)}商品
 **実装期間**: 1〜3ヶ月後
 
 **前提条件**:
@@ -854,7 +854,7 @@ class ReportGenerator:
 
             improvement_path = output_path / "feature_improvement_analysis.md"
             with open(improvement_path, "w", encoding="utf-8") as f:
-                f.write(f"# 特徴量改善効果分析レポート\n\n")
+                f.write("# 特徴量改善効果分析レポート\n\n")
                 f.write(f"**作成日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}\n\n")
                 f.write(improvement_report)
 
@@ -864,7 +864,7 @@ class ReportGenerator:
             implementation_plan = self._generate_detailed_implementation_plan(analysis_results)
             plan_path = output_path / "implementation_plan.md"
             with open(plan_path, "w", encoding="utf-8") as f:
-                f.write(f"# 段階的導入計画詳細\n\n")
+                f.write("# 段階的導入計画詳細\n\n")
                 f.write(f"**作成日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}\n\n")
                 f.write(implementation_plan)
 
@@ -961,8 +961,8 @@ class ReportGenerator:
 ### フェーズ1: 即座実行（Premium品質モデル）
 
 #### 対象商品詳細
-**商品数**: {len(premium_products)}商品  
-**平均R²スコア**: {premium_avg_r2:.3f}  
+**商品数**: {len(premium_products)}商品
+**平均R²スコア**: {premium_avg_r2:.3f}
 **平均価格変更率**: {premium_revenue_impact:.1f}%
 
 #### 実装スケジュール
@@ -983,8 +983,8 @@ class ReportGenerator:
 ### フェーズ2: 慎重実行（Standard品質モデル）
 
 #### 対象商品詳細
-**商品数**: {len(standard_products)}商品  
-**平均R²スコア**: {standard_avg_r2:.3f}  
+**商品数**: {len(standard_products)}商品
+**平均R²スコア**: {standard_avg_r2:.3f}
 **平均価格変更率**: {standard_revenue_impact:.1f}%
 
 #### 実装条件
@@ -1000,7 +1000,7 @@ class ReportGenerator:
 ### フェーズ3: 改善後実行（Basic品質モデル）
 
 #### 対象商品詳細
-**商品数**: {len(basic_products)}商品  
+**商品数**: {len(basic_products)}商品
 **現在の平均R²スコア**: {basic_avg_r2:.3f}
 
 #### 改善計画
@@ -1021,7 +1021,7 @@ class ReportGenerator:
 ### 改善対象（Rejected品質モデル）
 
 #### 対象商品詳細
-**商品数**: {len(rejected_products)}商品  
+**商品数**: {len(rejected_products)}商品
 **現在の平均R²スコア**: {rejected_avg_r2:.3f}
 
 #### 根本的改善アプローチ

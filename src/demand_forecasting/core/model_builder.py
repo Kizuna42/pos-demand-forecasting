@@ -1,18 +1,13 @@
 from pathlib import Path
 import pickle
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 import shap
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import (
-    KFold,
-    TimeSeriesSplit,
-    cross_val_score,
-    train_test_split,
-)
+from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
 try:
@@ -389,7 +384,7 @@ class ModelBuilder:
 
             mape = np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
             return float(mape)
-        except:
+        except Exception:
             return float("inf")
 
     def _calculate_wape(self, y_true: pd.Series, y_pred: np.ndarray) -> float:
@@ -410,7 +405,7 @@ class ModelBuilder:
 
             wape = (np.sum(np.abs(y_true - y_pred)) / total_true) * 100
             return float(wape)
-        except:
+        except Exception:
             return float("inf")
 
     def get_feature_importance(self, model: Any, feature_names: List[str]) -> Dict[str, float]:

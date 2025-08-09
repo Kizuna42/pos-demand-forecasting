@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 import sqlite3
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -227,11 +227,9 @@ class FeatureEngineer:
             if is_weekend or is_holiday:
                 # 休日パターン: 早い時間帯に低く緩やかな丘
                 config = holiday_config
-                pattern_type = "holiday"
             else:
                 # 平日パターン: 遅い時間帯に高く鋭い山
                 config = weekday_config
-                pattern_type = "weekday"
 
             # 確率分布関数による時刻生成
             assigned_time, probability = self._generate_time_from_probability_model(config)
@@ -416,7 +414,7 @@ class FeatureEngineer:
             with sqlite3.connect(str(self.cache_db_path)) as conn:
                 cursor = conn.execute(
                     """
-                    SELECT data_json FROM weather_cache 
+                    SELECT data_json FROM weather_cache
                     WHERE cache_key = ? AND expires_at > CURRENT_TIMESTAMP
                 """,
                     (cache_key,),
@@ -444,7 +442,7 @@ class FeatureEngineer:
             with sqlite3.connect(str(self.cache_db_path)) as conn:
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO weather_cache 
+                    INSERT OR REPLACE INTO weather_cache
                     (cache_key, date_range, api_name, data_json, expires_at)
                     VALUES (?, ?, ?, ?, ?)
                 """,
@@ -480,7 +478,7 @@ class FeatureEngineer:
         """外部APIから気象データを取得（履歴データ対応版）"""
         df_weather = df.copy()
 
-        api_config = self.feature_config.get("weather_features", {})
+        _ = self.feature_config.get("weather_features", {})
 
         # 日付範囲を取得
         min_date = df["年月日"].min().strftime("%Y-%m-%d")
