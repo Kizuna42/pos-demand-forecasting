@@ -12,11 +12,11 @@ Requirements: 8.1, 8.2, 8.3, 8.4
 """
 
 import argparse
+from datetime import datetime
 import os
+from pathlib import Path
 import sys
 import traceback
-from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -141,10 +141,12 @@ class DemandForecastingPipeline:
             if missing_configs:
                 raise ConfigurationError(f"必須設定項目が不足: {', '.join(missing_configs)}")
 
-            # データファイルの存在確認
+            # データファイルの存在確認（初期化時は警告のみ。実行時に厳格チェック）
             raw_data_path = self.config.get("data.raw_data_path")
-            if not Path(raw_data_path).exists():
-                raise ConfigurationError(f"生データファイルが見つかりません: {raw_data_path}")
+            if raw_data_path and not Path(raw_data_path).exists():
+                self.logger.warning(
+                    f"生データファイルが見つかりません（初期化時）: {raw_data_path}"
+                )
 
             self.logger.info("設定値の検証が完了しました")
 
@@ -480,9 +482,15 @@ class DemandForecastingPipeline:
                 model_results["test_metrics"]["r2_score"]
             )
 
-            # 実用化準備状況評価
+            # 実用化準備状況評価（過学習・CV安定性を含む指標で評価）
+            implementation_metrics = {
+                "r2_score": model_results["test_metrics"].get("r2_score", 0.0),
+                "overfitting_score": model_results.get("overfitting_score", 1.0),
+                "cv_mean_r2": model_results.get("cv_scores", {}).get("mean_score", 0.0),
+                "cv_std_r2": model_results.get("cv_scores", {}).get("std_score", 1.0),
+            }
             implementation_readiness = self.quality_evaluator.assess_implementation_readiness(
-                model_results["test_metrics"]
+                implementation_metrics
             )
 
             # 需要曲線分析
@@ -621,8 +629,7 @@ class DemandForecastingPipeline:
         report_files = []
 
         if not analysis_results:
-            self.logger.warning("分析結果がないためレポート生成をスキップします")
-            return report_files
+            self.logger.warning("分析結果がないためレポートはサマリーのみ生成します")
 
         try:
             # レポート出力ディレクトリの確保

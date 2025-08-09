@@ -74,7 +74,7 @@ class QualityEvaluator:
 
         quality_level = self.evaluate_quality_level(r2_score)
 
-        # 過学習チェック（厳格化）
+        # 過学習チェック（設定に一本化）
         overfitting_threshold = self.quality_config.get("overfitting_threshold", 0.01)
         is_overfitting = overfitting_score > overfitting_threshold
 

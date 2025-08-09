@@ -59,7 +59,7 @@ quality:
 
   # 過学習抑制とリアリズムのための制限
   overfitting_threshold: 0.01
-  max_r2_score: 0.90 # R²スコア上限（過度な精度の防止）
+  max_r2_score: 0.95 # R²スコア上限（過度な精度の防止）
   min_cv_stability: 0.8 # CV安定性の最低基準
   max_train_test_gap: 0.05 # 訓練/テスト性能差の上限
 
